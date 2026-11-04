@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ATC 飛航管制 - 桃園機場專業版 v2</title>
+    <title>ATC 飛航管制 - 桃園機場專業版 v3</title>
     <!-- 引入 Tailwind CSS CDN -->
     <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
     <style>
@@ -111,56 +111,67 @@
         const CENTER_X = WIDTH / 2;
         const CENTER_Y = HEIGHT / 2;
 
-        // --- 桃園機場 (RCTP) 雙平行跑道 (北端 05L/05R，南端 23R/23L) ---
         const runways = [
             { idTop: '05L', idBottom: '23R', x: WIDTH / 2 - 45, y: HEIGHT / 2 - 100, w: 24, h: 200 },
             { idTop: '05R', idBottom: '23L', x: WIDTH / 2 + 21, y: HEIGHT / 2 - 100, w: 24, h: 200 }
         ];
 
-        // --- Web Audio API 音效合成器設定 ---
+        // --- Web Audio API 音效合成器設定 (具備防呆保護) ---
         let audioCtx = null;
 
         function initAudio() {
-            if (!audioCtx) {
-                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-            }
-            if (audioCtx.state === 'suspended') {
-                audioCtx.resume();
+            try {
+                if (!audioCtx) {
+                    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                }
+                if (audioCtx.state === 'suspended') {
+                    audioCtx.resume();
+                }
+            } catch (e) {
+                console.warn('Web Audio API not supported or blocked:', e);
             }
         }
 
         function playLandSound() {
-            initAudio();
-            if (!audioCtx) return;
-            const notes = [523.25, 659.25, 783.99];
-            notes.forEach((freq, index) => {
-                const osc = audioCtx.createOscillator();
-                const gain = audioCtx.createGain();
-                osc.type = 'triangle';
-                osc.frequency.setValueAtTime(freq, audioCtx.currentTime + index * 0.08);
-                gain.gain.setValueAtTime(0.15, audioCtx.currentTime + index * 0.08);
-                gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + index * 0.08 + 0.15);
-                osc.connect(gain);
-                gain.connect(audioCtx.destination);
-                osc.start(audioCtx.currentTime + index * 0.08);
-                osc.stop(audioCtx.currentTime + index * 0.08 + 0.15);
-            });
+            try {
+                initAudio();
+                if (!audioCtx) return;
+                const notes = [523.25, 659.25, 783.99];
+                notes.forEach((freq, index) => {
+                    const osc = audioCtx.createOscillator();
+                    const gain = audioCtx.createGain();
+                    osc.type = 'triangle';
+                    osc.frequency.setValueAtTime(freq, audioCtx.currentTime + index * 0.08);
+                    gain.gain.setValueAtTime(0.15, audioCtx.currentTime + index * 0.08);
+                    gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + index * 0.08 + 0.15);
+                    osc.connect(gain);
+                    gain.connect(audioCtx.destination);
+                    osc.start(audioCtx.currentTime + index * 0.08);
+                    osc.stop(audioCtx.currentTime + index * 0.08 + 0.15);
+                });
+            } catch (e) {
+                // 忽略音訊播放錯誤，確保遊戲主邏輯不中斷
+            }
         }
 
         function playCrashSound() {
-            initAudio();
-            if (!audioCtx) return;
-            const osc = audioCtx.createOscillator();
-            const gain = audioCtx.createGain();
-            osc.type = 'sawtooth';
-            osc.frequency.setValueAtTime(150, audioCtx.currentTime);
-            osc.frequency.linearRampToValueAtTime(40, audioCtx.currentTime + 0.5);
-            gain.gain.setValueAtTime(0.3, audioCtx.currentTime);
-            gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.5);
-            osc.connect(gain);
-            gain.connect(audioCtx.destination);
-            osc.start();
-            osc.stop(audioCtx.currentTime + 0.5);
+            try {
+                initAudio();
+                if (!audioCtx) return;
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                osc.type = 'sawtooth';
+                osc.frequency.setValueAtTime(150, audioCtx.currentTime);
+                osc.frequency.linearRampToValueAtTime(40, audioCtx.currentTime + 0.5);
+                gain.gain.setValueAtTime(0.3, audioCtx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.5);
+                osc.connect(gain);
+                gain.connect(audioCtx.destination);
+                osc.start();
+                osc.stop(audioCtx.currentTime + 0.5);
+            } catch (e) {
+                // 忽略音訊播放錯誤
+            }
         }
 
         // --- 遊戲狀態資料 ---
@@ -305,7 +316,6 @@
 
             planes.forEach(p => p.isWarning = false);
 
-            // 衝突檢測 (高度差 < 1000 呎)
             for (let i = 0; i < planes.length; i++) {
                 for (let j = i + 1; j < planes.length; j++) {
                     let p1 = planes[i];
@@ -328,7 +338,6 @@
                 }
             }
 
-            // 更新位置與跑道降落判定
             for (let i = planes.length - 1; i >= 0; i--) {
                 let p = planes[i];
 
@@ -344,7 +353,6 @@
                 p.x += p.vx;
                 p.y += p.vy;
 
-                // 雷達回波閃爍邏輯
                 const planeAngle = Math.atan2(p.y - CENTER_Y, p.x - CENTER_X);
                 let angleDiff = Math.abs(sweepAngle - planeAngle);
                 if (angleDiff > Math.PI) angleDiff = Math.PI * 2 - angleDiff;
@@ -355,7 +363,6 @@
                     p.flashAlpha = Math.max(0.25, p.flashAlpha * 0.95);
                 }
 
-                // **跑道降落檢測（新增高度限制：必須 <= 3000 呎才能降落）**
                 for (let rw of runways) {
                     if (
                         p.x >= rw.x && p.x <= rw.x + rw.w &&
@@ -389,7 +396,6 @@
             ctx.fillStyle = 'rgba(2, 6, 23, 0.35)';
             ctx.fillRect(0, 0, WIDTH, HEIGHT);
 
-            // 繪製雙跑道與雙向編號 (05 / 23)
             runways.forEach(rw => {
                 ctx.fillStyle = '#1e293b';
                 ctx.fillRect(rw.x, rw.y, rw.w, rw.h);
@@ -397,13 +403,11 @@
                 ctx.lineWidth = 1.5;
                 ctx.strokeRect(rw.x, rw.y, rw.w, rw.h);
 
-                // 跑道編號 (北端 05，南端 23)
                 ctx.fillStyle = '#86efac';
                 ctx.font = '9px monospace';
                 ctx.fillText(rw.idTop, rw.x + 3, rw.y + 14);
                 ctx.fillText(rw.idBottom, rw.x + 3, rw.y + rw.h - 6);
 
-                // 中央虛線
                 ctx.strokeStyle = '#e2e8f0';
                 ctx.lineWidth = 1;
                 ctx.setLineDash([6, 6]);
@@ -414,7 +418,6 @@
                 ctx.setLineDash([]);
             });
 
-            // 繪製拖曳引導線
             if (isDragging && selectedPlane) {
                 ctx.strokeStyle = '#facc15';
                 ctx.lineWidth = 1.5;
@@ -431,7 +434,6 @@
                 ctx.fill();
             }
 
-            // 繪製所有飛機
             planes.forEach(p => {
                 const isSelected = (selectedPlane === p);
 
