@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ATC 飛航管制 - 桃園機場專業版</title>
+    <title>ATC 飛航管制 - 雷達回波閃爍版</title>
     <!-- 引入 Tailwind CSS CDN -->
     <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
     <style>
@@ -15,9 +15,9 @@
             position: absolute;
             top: 0; left: 50%;
             width: 50%; height: 100%;
-            background: linear-gradient(90deg, rgba(34, 197, 94, 0) 0%, rgba(34, 197, 94, 0.15) 100%);
+            background: linear-gradient(90deg, rgba(34, 197, 94, 0) 0%, rgba(34, 197, 94, 0.2) 100%);
             transform-origin: left center;
-            animation: radar-sweep 8s linear infinite;
+            animation: radar-sweep 6s linear infinite;
             pointer-events: none;
             border-top-right-radius: 100%;
         }
@@ -32,7 +32,7 @@
 </head>
 <body class="bg-slate-950 font-sans min-h-screen flex flex-col items-center justify-between p-4 text-emerald-400 select-none">
 
-    <!-- 主容器 (放大版寬度) -->
+    <!-- 主容器 -->
     <div class="w-full max-w-2xl bg-slate-900 rounded-2xl shadow-2xl overflow-hidden flex flex-col border border-emerald-900/50 p-5 gap-4 relative">
         
         <!-- ================= 1. 上方狀態列 ================= -->
@@ -40,9 +40,9 @@
             <div>
                 <h1 class="text-base font-bold tracking-wider text-emerald-400 flex items-center gap-2">
                     <span class="inline-block w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
-                    RCTP 桃園國際機場塔台管制
+                    RCTP 桃園國際機場塔台管制 (雷達回波閃爍版)
                 </h1>
-                <p class="text-[11px] text-emerald-600">支援 VFR/IFR 高度分離規則與雙平行跑道系統</p>
+                <p class="text-[11px] text-emerald-600">光束掃過才閃亮：還原傳統機械雷達與殘影特性</p>
             </div>
             <div class="flex gap-2 text-xs font-mono">
                 <div class="bg-slate-900 px-3 py-1 rounded-lg border border-emerald-900/60 text-emerald-300">
@@ -54,7 +54,7 @@
             </div>
         </header>
 
-        <!-- ================= 2. 遊戲雷達畫面區 (放大至 600x600) ================= -->
+        <!-- ================= 2. 遊戲雷達畫面區 (600x600) ================= -->
         <main class="flex flex-col items-center justify-center relative bg-slate-950 rounded-xl overflow-hidden border-2 border-emerald-800/60 shadow-inner">
             
             <!-- 雷達背景裝飾層 -->
@@ -74,8 +74,8 @@
             
             <!-- 遊戲開始前的覆蓋提示畫面 -->
             <div id="start-screen" class="absolute inset-0 bg-slate-950/85 backdrop-blur-xs flex flex-col items-center justify-center gap-3 p-4 z-30 text-center">
-                <h2 class="text-2xl font-black text-emerald-400">桃園機場管制總指揮</h2>
-                <p class="text-xs text-emerald-300 max-w-[300px]">注意高度層（IFR/VFR 規則）！高度差 >= 1000 呎的飛機不會相撞。將飛機引導至 05L / 05R 雙跑道降落！</p>
+                <h2 class="text-2xl font-black text-emerald-400">雷達回波閃爍模擬</h2>
+                <p class="text-xs text-emerald-300 max-w-[300px]">飛機回波會隨著雷達光束掃過而瞬間閃亮！引導飛機降落並保持安全高度層。</p>
                 <button onclick="startGame()" class="bg-emerald-600 hover:bg-emerald-500 text-slate-950 font-bold px-6 py-2.5 rounded-xl shadow-lg transition active:scale-95 cursor-pointer text-sm">
                     開始執勤 🚀
                 </button>
@@ -84,7 +84,7 @@
 
         <!-- 底部版權 -->
         <footer class="text-center text-[10px] text-emerald-700">
-            Vibe Coding - ATC Simulator Professional Edition (RCTP Layout)
+            Vibe Coding - ATC Simulator Sweep Flash Edition
         </footer>
     </div>
 
@@ -101,15 +101,16 @@
         </div>
     </div>
 
-    <!-- ================= 核心 JavaScript 與 VFR/IFR 高度邏輯 ================= -->
+    <!-- ================= 核心 JavaScript (包含光束掃描與回波閃爍邏輯) ================= -->
     <script>
         const canvas = document.getElementById('radarCanvas');
         const ctx = canvas.getContext('2d');
 
         const WIDTH = canvas.width;
         const HEIGHT = canvas.height;
+        const CENTER_X = WIDTH / 2;
+        const CENTER_Y = HEIGHT / 2;
 
-        // --- 桃園機場 (RCTP) 雙平行跑道設計 (05L/23R 與 05R/23L) ---
         const runways = [
             { id: '05L', x: WIDTH / 2 - 45, y: HEIGHT / 2 - 100, w: 24, h: 200 },
             { id: '05R', x: WIDTH / 2 + 21, y: HEIGHT / 2 - 100, w: 24, h: 200 }
@@ -166,12 +167,12 @@
         let score = 0;
         let isPlaying = false;
         let spawnTimer = null;
+        let sweepAngle = 0; // 雷達光束旋轉角度
 
         let selectedPlane = null;
         let isDragging = false;
         let dragCurrentPos = { x: 0, y: 0 };
 
-        // 隨機生成飛機 (依照 VFR / IFR 高度規則)
         function spawnPlane() {
             if (!isPlaying) return;
 
@@ -197,20 +198,15 @@
             const angle = Math.atan2(targetY - y, targetX - x);
             const speed = 0.45 + Math.random() * 0.35;
 
-            // **計算航向角度 (0 ~ 360 度)**
             const headingDeg = (angle * 180 / Math.PI + 360) % 360;
-            const isEastbound = headingDeg >= 0 && headingDeg < 180; // 東向為 0 ~ 179 度
-
-            // **依照 VFR / IFR 規定指派高度**
+            const isEastbound = headingDeg >= 0 && headingDeg < 180;
             const flightRules = Math.random() > 0.35 ? 'IFR' : 'VFR';
             let altitude;
 
             if (flightRules === 'IFR') {
-                // IFR: 東向奇數千呎 (3000, 5000, 7000)，西向偶數千呎 (4000, 6000, 8000)
                 const altitudes = isEastbound ? [3000, 5000, 7000] : [4000, 6000, 8000];
                 altitude = altitudes[Math.floor(Math.random() * altitudes.length)];
             } else {
-                // VFR: 半圓規則 +500 呎 (3500, 5500 或 4500, 6500)
                 const altitudes = isEastbound ? [3500, 5500] : [4500, 6500];
                 altitude = altitudes[Math.floor(Math.random() * altitudes.length)];
             }
@@ -225,6 +221,7 @@
                 speedValue: speed,
                 altitude: altitude,
                 speedKts: Math.floor(180 + Math.random() * 120),
+                flashAlpha: 0.2, // 回波初始亮度 (殘影)
                 isLanding: false,
                 isWarning: false
             });
@@ -303,9 +300,12 @@
         }
 
         function update() {
+            // **更新光束旋轉角度 (配合 CSS 6秒一圈，每秒約 1.04 弧度)**
+            sweepAngle = (sweepAngle + 0.03) % (Math.PI * 2);
+
             planes.forEach(p => p.isWarning = false);
 
-            // **1. 帶有「高度垂直分離」的衝突檢測**
+            // 衝突檢測 (高度差 < 1000 呎)
             for (let i = 0; i < planes.length; i++) {
                 for (let j = i + 1; j < planes.length; j++) {
                     let p1 = planes[i];
@@ -315,7 +315,6 @@
                     const dist = Math.hypot(p1.x - p2.x, p1.y - p2.y);
                     const altDiff = Math.abs(p1.altitude - p2.altitude);
 
-                    // **規則：高度差小於 1000 呎才會發生衝突與相撞！**
                     if (altDiff < 1000) {
                         if (dist < 18) {
                             playCrashSound();
@@ -329,7 +328,7 @@
                 }
             }
 
-            // **2. 更新位置與雙跑道降落判定**
+            // 更新位置與回波亮度
             for (let i = planes.length - 1; i >= 0; i--) {
                 let p = planes[i];
 
@@ -345,7 +344,22 @@
                 p.x += p.vx;
                 p.y += p.vy;
 
-                // 檢查是否降落於任一條平行跑道 (05L 或 05R)
+                // **雷達回波閃爍邏輯 (Sweep Flash Detection)**
+                // 計算飛機相對於畫布中心的絕對角度
+                const planeAngle = Math.atan2(p.y - CENTER_Y, p.x - CENTER_X);
+                // 計算光束角度與飛機角度的夾角差
+                let angleDiff = Math.abs(sweepAngle - planeAngle);
+                if (angleDiff > Math.PI) angleDiff = Math.PI * 2 - angleDiff;
+
+                // 如果光束正好掃過（差距小於 0.12 弧度），回波瞬間達到最亮 (1.0)
+                if (angleDiff < 0.12) {
+                    p.flashAlpha = 1.0;
+                } else {
+                    // 否則每一影格逐漸黯淡（模擬殘影）
+                    p.flashAlpha = Math.max(0.25, p.flashAlpha * 0.95);
+                }
+
+                // 跑道降落檢測
                 for (let rw of runways) {
                     if (
                         p.x >= rw.x && p.x <= rw.x + rw.w &&
@@ -378,7 +392,7 @@
             ctx.fillStyle = 'rgba(2, 6, 23, 0.35)';
             ctx.fillRect(0, 0, WIDTH, HEIGHT);
 
-            // --- 繪製桃園機場雙平行跑道 (05L / 05R) ---
+            // 繪製雙跑道
             runways.forEach(rw => {
                 ctx.fillStyle = '#1e293b';
                 ctx.fillRect(rw.x, rw.y, rw.w, rw.h);
@@ -386,12 +400,10 @@
                 ctx.lineWidth = 1.5;
                 ctx.strokeRect(rw.x, rw.y, rw.w, rw.h);
 
-                // 跑道編號標示
                 ctx.fillStyle = '#86efac';
                 ctx.font = '9px monospace';
                 ctx.fillText(rw.id, rw.x + 4, rw.y + 15);
 
-                // 中央虛線
                 ctx.strokeStyle = '#e2e8f0';
                 ctx.lineWidth = 1;
                 ctx.setLineDash([6, 6]);
@@ -419,7 +431,7 @@
                 ctx.fill();
             }
 
-            // 繪製所有飛機
+            // 繪製所有飛機 (套用 flashAlpha 亮度)
             planes.forEach(p => {
                 const isSelected = (selectedPlane === p);
 
@@ -447,27 +459,31 @@
                     ctx.stroke();
                 }
 
-                const color = p.isWarning ? '#ef4444' : (isSelected ? '#facc15' : '#22c55e');
-                ctx.fillStyle = color;
-                ctx.shadowColor = color;
-                ctx.shadowBlur = p.isWarning ? 15 : 10;
+                // 套用回波閃爍透明度 (flashAlpha)
+                const baseColor = p.isWarning ? [239, 68, 68] : (isSelected ? [250, 204, 21] : [34, 197, 94]);
+                const alphaColor = `rgba(${baseColor[0]}, ${baseColor[1]}, ${baseColor[2]}, ${p.flashAlpha})`;
+
+                ctx.fillStyle = alphaColor;
+                ctx.shadowColor = alphaColor;
+                ctx.shadowBlur = p.isWarning ? 15 : (p.flashAlpha > 0.8 ? 12 : 4);
                 ctx.beginPath();
                 ctx.arc(p.x, p.y, 5, 0, Math.PI * 2);
                 ctx.fill();
                 ctx.shadowBlur = 0;
 
-                ctx.strokeStyle = p.isWarning ? 'rgba(239, 68, 68, 0.6)' : (isSelected ? 'rgba(250, 204, 21, 0.6)' : 'rgba(34, 197, 94, 0.3)');
+                // 航跡預測線也跟著亮度閃爍
+                ctx.strokeStyle = p.isWarning ? `rgba(239, 68, 68, ${p.flashAlpha * 0.8})` : (isSelected ? `rgba(250, 204, 21, ${p.flashAlpha * 0.8})` : `rgba(34, 197, 94, ${p.flashAlpha * 0.4})`);
                 ctx.lineWidth = isSelected || p.isWarning ? 2 : 1;
                 ctx.beginPath();
                 ctx.moveTo(p.x, p.y);
                 ctx.lineTo(p.x - p.vx * 20, p.y - p.vy * 20);
                 ctx.stroke();
 
-                // 標籤顯示：航班編號、規則 (IFR/VFR)、高度與速度
-                ctx.fillStyle = p.isWarning ? '#fca5a5' : (isSelected ? '#fef08a' : '#86efac');
+                // 航班文字標籤也隨光束閃爍
+                ctx.fillStyle = p.isWarning ? `rgba(252, 165, 165, ${Math.max(0.5, p.flashAlpha)})` : (isSelected ? '#fef08a' : `rgba(134, 239, 172, ${Math.max(0.5, p.flashAlpha)})`);
                 ctx.font = '10px monospace';
                 ctx.fillText(`${p.id} [${p.rules}]`, p.x + 12, p.y - 8);
-                ctx.fillStyle = p.isWarning ? '#f87171' : '#4ade80';
+                ctx.fillStyle = p.isWarning ? '#f87171' : `rgba(74, 222, 128, ${Math.max(0.5, p.flashAlpha)})`;
                 ctx.fillText(`FL${Math.floor(p.altitude / 100)} (${p.speedKts}kt)`, p.x + 12, p.y + 4);
             });
         }
