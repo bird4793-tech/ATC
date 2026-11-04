@@ -345,4 +345,149 @@
                 p.y += p.vy;
 
                 // 雷達回波閃爍邏輯
-                const planeAngle = Math.atan2(p.y -
+                const planeAngle = Math.atan2(p.y - CENTER_Y, p.x - CENTER_X);
+                let angleDiff = Math.abs(sweepAngle - planeAngle);
+                if (angleDiff > Math.PI) angleDiff = Math.PI * 2 - angleDiff;
+
+                if (angleDiff < 0.12) {
+                    p.flashAlpha = 1.0;
+                } else {
+                    p.flashAlpha = Math.max(0.25, p.flashAlpha * 0.95);
+                }
+
+                // **跑道降落檢測（新增高度限制：必須 <= 3000 呎才能降落）**
+                for (let rw of runways) {
+                    if (
+                        p.x >= rw.x && p.x <= rw.x + rw.w &&
+                        p.y >= rw.y && p.y <= rw.y + rw.h &&
+                        p.altitude <= 3000
+                    ) {
+                        score += 150;
+                        p.isLanding = true;
+                        playLandSound();
+                        updateUI();
+                        break;
+                    }
+                }
+
+                const margin = 70;
+                if (p.x < -margin || p.x > WIDTH + margin || p.y < -margin || p.y > HEIGHT + margin) {
+                    planes.splice(i, 1);
+                    updateUI();
+                }
+            }
+        }
+
+        function triggerGameOver() {
+            isPlaying = false;
+            clearInterval(spawnTimer);
+            document.getElementById('game-over-text').textContent = `同高度層發生空中相撞！最終得分：${score} 分`;
+            document.getElementById('game-over-modal').classList.remove('hidden');
+        }
+
+        function render() {
+            ctx.fillStyle = 'rgba(2, 6, 23, 0.35)';
+            ctx.fillRect(0, 0, WIDTH, HEIGHT);
+
+            // 繪製雙跑道與雙向編號 (05 / 23)
+            runways.forEach(rw => {
+                ctx.fillStyle = '#1e293b';
+                ctx.fillRect(rw.x, rw.y, rw.w, rw.h);
+                ctx.strokeStyle = '#22c55e';
+                ctx.lineWidth = 1.5;
+                ctx.strokeRect(rw.x, rw.y, rw.w, rw.h);
+
+                // 跑道編號 (北端 05，南端 23)
+                ctx.fillStyle = '#86efac';
+                ctx.font = '9px monospace';
+                ctx.fillText(rw.idTop, rw.x + 3, rw.y + 14);
+                ctx.fillText(rw.idBottom, rw.x + 3, rw.y + rw.h - 6);
+
+                // 中央虛線
+                ctx.strokeStyle = '#e2e8f0';
+                ctx.lineWidth = 1;
+                ctx.setLineDash([6, 6]);
+                ctx.beginPath();
+                ctx.moveTo(rw.x + rw.w / 2, rw.y + 20);
+                ctx.lineTo(rw.x + rw.w / 2, rw.y + rw.h - 15);
+                ctx.stroke();
+                ctx.setLineDash([]);
+            });
+
+            // 繪製拖曳引導線
+            if (isDragging && selectedPlane) {
+                ctx.strokeStyle = '#facc15';
+                ctx.lineWidth = 1.5;
+                ctx.setLineDash([4, 4]);
+                ctx.beginPath();
+                ctx.moveTo(selectedPlane.x, selectedPlane.y);
+                ctx.lineTo(dragCurrentPos.x, dragCurrentPos.y);
+                ctx.stroke();
+                ctx.setLineDash([]);
+
+                ctx.fillStyle = '#facc15';
+                ctx.beginPath();
+                ctx.arc(dragCurrentPos.x, dragCurrentPos.y, 4, 0, Math.PI * 2);
+                ctx.fill();
+            }
+
+            // 繪製所有飛機
+            planes.forEach(p => {
+                const isSelected = (selectedPlane === p);
+
+                if (p.isLanding) {
+                    ctx.fillStyle = '#fbbf24';
+                    ctx.beginPath();
+                    ctx.arc(p.x, p.y, p.radius || 6, 0, Math.PI * 2);
+                    ctx.fill();
+                    return;
+                }
+
+                if (p.isWarning) {
+                    ctx.strokeStyle = '#ef4444';
+                    ctx.lineWidth = 2;
+                    ctx.beginPath();
+                    ctx.arc(p.x, p.y, 18, 0, Math.PI * 2);
+                    ctx.stroke();
+                }
+
+                if (isSelected) {
+                    ctx.strokeStyle = '#facc15';
+                    ctx.lineWidth = 2;
+                    ctx.beginPath();
+                    ctx.arc(p.x, p.y, 14, 0, Math.PI * 2);
+                    ctx.stroke();
+                }
+
+                const baseColor = p.isWarning ? [239, 68, 68] : (isSelected ? [250, 204, 21] : [34, 197, 94]);
+                const alphaColor = `rgba(${baseColor[0]}, ${baseColor[1]}, ${baseColor[2]}, ${p.flashAlpha})`;
+
+                ctx.fillStyle = alphaColor;
+                ctx.shadowColor = alphaColor;
+                ctx.shadowBlur = p.isWarning ? 15 : (p.flashAlpha > 0.8 ? 12 : 4);
+                ctx.beginPath();
+                ctx.arc(p.x, p.y, 5, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.shadowBlur = 0;
+
+                ctx.strokeStyle = p.isWarning ? `rgba(239, 68, 68, ${p.flashAlpha * 0.8})` : (isSelected ? `rgba(250, 204, 21, ${p.flashAlpha * 0.8})` : `rgba(34, 197, 94, ${p.flashAlpha * 0.4})`);
+                ctx.lineWidth = isSelected || p.isWarning ? 2 : 1;
+                ctx.beginPath();
+                ctx.moveTo(p.x, p.y);
+                ctx.lineTo(p.x - p.vx * 20, p.y - p.vy * 20);
+                ctx.stroke();
+
+                ctx.fillStyle = p.isWarning ? `rgba(252, 165, 165, ${Math.max(0.5, p.flashAlpha)})` : (isSelected ? '#fef08a' : `rgba(134, 239, 172, ${Math.max(0.5, p.flashAlpha)})`);
+                ctx.font = '10px monospace';
+                ctx.fillText(`${p.id} [${p.rules}]`, p.x + 12, p.y - 8);
+                ctx.fillStyle = p.isWarning ? '#f87171' : `rgba(74, 222, 128, ${Math.max(0.5, p.flashAlpha)})`;
+                ctx.fillText(`FL${Math.floor(p.altitude / 100)} (${p.speedKts}kt)`, p.x + 12, p.y + 4);
+            });
+        }
+
+        window.onload = function() {
+            requestAnimationFrame(gameLoop);
+        };
+    </script>
+</body>
+</html>
