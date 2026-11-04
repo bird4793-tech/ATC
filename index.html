@@ -386,3 +386,218 @@
                 updateUI();
             }
         });
+
+        function gameLoop() {
+            if (isPlaying && !isPaused) {
+                update();
+                render();
+            } else if (isPlaying && isPaused) {
+                render();
+            }
+            requestAnimationFrame(gameLoop);
+        }
+
+        function update() {
+            sweepAngle = (sweepAngle + 0.03) % (Math.PI * 2);
+
+            planes.forEach(p => p.isWarning = false);
+
+            for (let i = 0; i < planes.length; i++) {
+                for (let j = i + 1; j < planes.length; j++) {
+                    let p1 = planes[i];
+                    let p2 = planes[j];
+                    if (p1.isLanding || p2.isLanding) continue;
+
+                    const dist = Math.hypot(p1.x - p2.x, p1.y - p2.y);
+                    const altDiff = Math.abs(p1.altitude - p2.altitude);
+
+                    if (altDiff < 1000) {
+                        if (dist < 18) {
+                            playCrashSound();
+                            triggerGameOver();
+                            return;
+                        } else if (dist < 45) {
+                            p1.isWarning = true;
+                            p2.isWarning = true;
+                        }
+                    }
+                }
+            }
+
+            for (let i = planes.length - 1; i >= 0; i--) {
+                let p = planes[i];
+
+                if (p.isLanding) {
+                    p.radius = (p.radius || 6) * 0.95;
+                    if (p.radius < 0.5) {
+                        planes.splice(i, 1);
+                        updateUI();
+                    }
+                    continue;
+                }
+
+                p.x += p.vx;
+                p.y += p.vy;
+
+                const planeAngle = Math.atan2(p.y - CENTER_Y, p.x - CENTER_X);
+                let angleDiff = Math.abs(sweepAngle - planeAngle);
+                if (angleDiff > Math.PI) angleDiff = Math.PI * 2 - angleDiff;
+
+                if (angleDiff < 0.12) {
+                    p.flashAlpha = 1.0;
+                } else {
+                    p.flashAlpha = Math.max(0.25, p.flashAlpha * 0.95);
+                }
+
+                // **五邊進場與依現用跑道方向的嚴格降落判定**
+                for (let rw of runways) {
+                    let validHeading = false;
+                    if (currentMetar.activeRunwayConfig === '05' && p.vy < 0) {
+                        // 05 跑道需向北降落（vy < 0）
+                        validHeading = true;
+                    } else if (currentMetar.activeRunwayConfig === '23' && p.vy > 0) {
+                        // 23 跑道需向南降落（vy > 0）
+                        validHeading = true;
+                    }
+
+                    if (
+                        p.type === 'ARR' &&
+                        p.x >= rw.x && p.x <= rw.x + rw.w &&
+                        p.y >= rw.y && p.y <= rw.y + rw.h &&
+                        p.altitude <= 3000 &&
+                        validHeading
+                    ) {
+                        score += 250;
+                        p.isLanding = true;
+                        playLandSound();
+                        updateUI();
+                        break;
+                    }
+                }
+
+                const margin = 70;
+                if (p.x < -margin || p.x > WIDTH + margin || p.y < -margin || p.y > HEIGHT + margin) {
+                    planes.splice(i, 1);
+                    updateUI();
+                }
+            }
+        }
+
+        function triggerGameOver() {
+            isPlaying = false;
+            clearInterval(spawnTimer);
+            document.getElementById('game-over-text').textContent = `同高度層發生空中相撞！最終得分：${score} 分`;
+            document.getElementById('game-over-modal').classList.remove('hidden');
+        }
+
+        function render() {
+            ctx.fillStyle = 'rgba(2, 6, 23, 0.35)';
+            ctx.fillRect(0, 0, WIDTH, HEIGHT);
+
+            runways.forEach(rw => {
+                ctx.fillStyle = '#1e293b';
+                ctx.fillRect(rw.x, rw.y, rw.w, rw.h);
+                ctx.strokeStyle = '#22c55e';
+                ctx.lineWidth = 1.5;
+                ctx.strokeRect(rw.x, rw.y, rw.w, rw.h);
+
+                ctx.fillStyle = '#86efac';
+                ctx.font = '9px monospace';
+                ctx.fillText(rw.idTop, rw.x + 3, rw.y + 14);
+                ctx.fillText(rw.idBottom, rw.x + 3, rw.y + rw.h - 6);
+
+                ctx.strokeStyle = '#e2e8f0';
+                ctx.lineWidth = 1;
+                ctx.setLineDash([6, 6]);
+                ctx.beginPath();
+                ctx.moveTo(rw.x + rw.w / 2, rw.y + 20);
+                ctx.lineTo(rw.x + rw.w / 2, rw.y + rw.h - 15);
+                ctx.stroke();
+                ctx.setLineDash([]);
+            });
+
+            if (selectedPlane) {
+                ctx.strokeStyle = '#facc15';
+                ctx.lineWidth = 1.5;
+                ctx.setLineDash([4, 4]);
+                ctx.beginPath();
+                ctx.moveTo(selectedPlane.x, selectedPlane.y);
+                ctx.lineTo(mousePos.x, mousePos.y);
+                ctx.stroke();
+                ctx.setLineDash([]);
+
+                ctx.fillStyle = '#facc15';
+                ctx.beginPath();
+                ctx.arc(mousePos.x, mousePos.y, 4, 0, Math.PI * 2);
+                ctx.fill();
+            }
+
+            planes.forEach(p => {
+                const isSelected = (selectedPlane === p);
+                const isHovered = (hoverPlane === p);
+
+                if (p.isLanding) {
+                    ctx.fillStyle = '#fbbf24';
+                    ctx.beginPath();
+                    ctx.arc(p.x, p.y, p.radius || 6, 0, Math.PI * 2);
+                    ctx.fill();
+                    return;
+                }
+
+                if (isHovered && !isSelected) {
+                    ctx.strokeStyle = 'rgba(250, 204, 21, 0.4)';
+                    ctx.lineWidth = 1;
+                    ctx.beginPath();
+                    ctx.arc(p.x, p.y, 25, 0, Math.PI * 2);
+                    ctx.stroke();
+                }
+
+                if (p.isWarning) {
+                    ctx.strokeStyle = '#ef4444';
+                    ctx.lineWidth = 2;
+                    ctx.beginPath();
+                    ctx.arc(p.x, p.y, 18, 0, Math.PI * 2);
+                    ctx.stroke();
+                }
+
+                if (isSelected) {
+                    ctx.strokeStyle = '#facc15';
+                    ctx.lineWidth = 2;
+                    ctx.beginPath();
+                    ctx.arc(p.x, p.y, 14, 0, Math.PI * 2);
+                    ctx.stroke();
+                }
+
+                const baseColor = p.isWarning ? [239, 68, 68] : (isSelected ? [250, 204, 21] : [34, 197, 94]);
+                const alphaColor = `rgba(${baseColor[0]}, ${baseColor[1]}, ${baseColor[2]}, ${p.flashAlpha})`;
+
+                ctx.fillStyle = alphaColor;
+                ctx.shadowColor = alphaColor;
+                ctx.shadowBlur = p.isWarning ? 15 : (p.flashAlpha > 0.8 ? 12 : 4);
+                ctx.beginPath();
+                ctx.arc(p.x, p.y, 5, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.shadowBlur = 0;
+
+                ctx.strokeStyle = p.isWarning ? `rgba(239, 68, 68, ${p.flashAlpha * 0.8})` : (isSelected ? `rgba(250, 204, 21, ${p.flashAlpha * 0.8})` : `rgba(34, 197, 94, ${p.flashAlpha * 0.4})`);
+                ctx.lineWidth = isSelected || p.isWarning ? 2 : 1;
+                ctx.beginPath();
+                ctx.moveTo(p.x, p.y);
+                ctx.lineTo(p.x - p.vx * 20, p.y - p.vy * 20);
+                ctx.stroke();
+
+                const labelColor = p.type === 'ARR' ? '#fbbf24' : '#86efac';
+                ctx.fillStyle = p.isWarning ? '#fca5a5' : (isSelected ? '#fef08a' : labelColor);
+                ctx.font = '10px monospace';
+                ctx.fillText(`${p.id} [${p.type}]`, p.x + 12, p.y - 8);
+                ctx.fillStyle = p.isWarning ? '#f87171' : `rgba(74, 222, 128, ${Math.max(0.5, p.flashAlpha)})`;
+                ctx.fillText(`FL${Math.floor(p.altitude / 100)} (${p.speedKts}kt)`, p.x + 12, p.y + 4);
+            });
+        }
+
+        window.onload = function() {
+            requestAnimationFrame(gameLoop);
+        };
+    </script>
+</body>
+</html>
