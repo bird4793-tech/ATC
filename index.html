@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ATC 飛航管制 - 桃園機場專業版 v3</title>
+    <title>RCTP 桃園機場專業航管模擬器</title>
     <!-- 引入 Tailwind CSS CDN -->
     <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
     <style>
@@ -33,24 +33,29 @@
 <body class="bg-slate-950 font-sans min-h-screen flex flex-col items-center justify-between p-4 text-emerald-400 select-none">
 
     <!-- 主容器 -->
-    <div class="w-full max-w-2xl bg-slate-900 rounded-2xl shadow-2xl overflow-hidden flex flex-col border border-emerald-900/50 p-5 gap-4 relative">
+    <div class="w-full max-w-2xl bg-slate-900 rounded-2xl shadow-2xl overflow-hidden flex flex-col border border-emerald-900/50 p-5 gap-3 relative">
         
-        <!-- ================= 1. 上方狀態列 ================= -->
+        <!-- ================= 1. 上方狀態與控制列 ================= -->
         <header class="flex justify-between items-center bg-slate-950/80 p-3.5 rounded-xl border border-emerald-900/40">
             <div>
                 <h1 class="text-base font-bold tracking-wider text-emerald-400 flex items-center gap-2">
                     <span class="inline-block w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
                     RCTP 桃園國際機場塔台管制
                 </h1>
-                <p class="text-[11px] text-emerald-600">雙向跑道 (05/23) 與 VFR/IFR 高度垂直分離</p>
+                <p class="text-[11px] text-emerald-600">點擊選取 $\rightarrow$ 預覽虛線 $\rightarrow$ 點擊轉向 | 支援高度層分層防撞</p>
             </div>
-            <div class="flex gap-2 text-xs font-mono">
-                <div class="bg-slate-900 px-3 py-1 rounded-lg border border-emerald-900/60 text-emerald-300">
-                    🏆 得分: <span id="score">0</span>
+            <div class="flex items-center gap-3">
+                <div class="flex gap-2 text-xs font-mono">
+                    <div class="bg-slate-900 px-2.5 py-1 rounded-lg border border-emerald-900/60 text-emerald-300">
+                        🏆 <span id="score">0</span>
+                    </div>
+                    <div class="bg-slate-900 px-2.5 py-1 rounded-lg border border-emerald-900/60 text-emerald-300">
+                        ✈️ <span id="plane-count">0</span>
+                    </div>
                 </div>
-                <div class="bg-slate-900 px-3 py-1 rounded-lg border border-emerald-900/60 text-emerald-300">
-                    ✈️ 空中: <span id="plane-count">0</span>
-                </div>
+                <button id="pause-btn" onclick="togglePause()" class="bg-emerald-900/60 hover:bg-emerald-800 text-emerald-300 px-3 py-1 rounded-lg border border-emerald-700/50 text-xs font-bold cursor-pointer transition">
+                    暫停
+                </button>
             </div>
         </header>
 
@@ -69,18 +74,33 @@
                 </div>
             </div>
 
-            <!-- HTML5 Canvas 畫布 (600x600) -->
+            <!-- HTML5 Canvas 畫布 -->
             <canvas id="radarCanvas" width="600" height="600" class="block w-full max-w-[560px] aspect-square relative z-10 cursor-crosshair"></canvas>
             
             <!-- 遊戲開始前的覆蓋提示畫面 -->
             <div id="start-screen" class="absolute inset-0 bg-slate-950/85 backdrop-blur-xs flex flex-col items-center justify-center gap-3 p-4 z-30 text-center">
                 <h2 class="text-2xl font-black text-emerald-400">桃園機場管制總指揮</h2>
-                <p class="text-xs text-emerald-300 max-w-[300px]">引導 3000 呎進場高度的飛機降落 05L/05R 跑道！注意同高度層防撞規則。</p>
+                <p class="text-xs text-emerald-300 max-w-[320px]">
+                    請引導帶有 <span class="text-amber-300 font-bold">[ARR]</span> 標記、高度 $\le 3000$ 呎的航班降落 05L/05R 跑道！過境機 <span class="text-slate-400">[ENR]</span> 無需理會。點擊飛機後再點擊畫布可設定新航向。
+                </p>
                 <button onclick="startGame()" class="bg-emerald-600 hover:bg-emerald-500 text-slate-950 font-bold px-6 py-2.5 rounded-xl shadow-lg transition active:scale-95 cursor-pointer text-sm">
                     開始執勤 🚀
                 </button>
             </div>
         </main>
+
+        <!-- ================= 3. 下方選中飛機控制面板 (高度調整) ================= -->
+        <div id="control-panel" class="bg-slate-950/90 p-3 rounded-xl border border-emerald-900/50 flex justify-between items-center text-xs">
+            <div class="flex items-center gap-2">
+                <span class="text-slate-400">選中航機：</span>
+                <span id="selected-plane-info" class="font-mono text-amber-300 font-bold">未選取 (點擊畫布上飛機)</span>
+            </div>
+            <div class="flex items-center gap-2">
+                <span class="text-slate-400">高度指令:</span>
+                <button onclick="adjustAltitude(-1000)" class="bg-slate-800 hover:bg-slate-700 text-emerald-300 px-2.5 py-1 rounded border border-emerald-900/60 cursor-pointer active:scale-95">下降 -1000ft</button>
+                <button onclick="adjustAltitude(1000)" class="bg-slate-800 hover:bg-slate-700 text-emerald-300 px-2.5 py-1 rounded border border-emerald-900/60 cursor-pointer active:scale-95">爬升 +1000ft</button>
+            </div>
+        </div>
 
         <!-- 底部版權 -->
         <footer class="text-center text-[10px] text-emerald-700">
@@ -88,7 +108,7 @@
         </footer>
     </div>
 
-    <!-- ================= 3. 遊戲結束彈窗 Modal ================= -->
+    <!-- ================= 4. 遊戲結束彈窗 Modal ================= -->
     <div id="game-over-modal" class="fixed inset-0 bg-black/80 backdrop-blur-sm hidden flex items-center justify-center p-4 z-50">
         <div class="bg-slate-900 rounded-2xl p-6 w-full max-w-sm text-center shadow-2xl border-2 border-rose-600 flex flex-col gap-4">
             <div>
@@ -116,7 +136,10 @@
             { idTop: '05R', idBottom: '23L', x: WIDTH / 2 + 21, y: HEIGHT / 2 - 100, w: 24, h: 200 }
         ];
 
-        // --- Web Audio API 音效合成器設定 (具備防呆保護) ---
+        // 真實 RCTP 桃園機場航空公司代碼庫
+        const airlines = ['CI', 'BR', 'JX', 'CX', 'JL', 'SQ'];
+
+        // Web Audio API 音效設定
         let audioCtx = null;
 
         function initAudio() {
@@ -128,7 +151,7 @@
                     audioCtx.resume();
                 }
             } catch (e) {
-                console.warn('Web Audio API not supported or blocked:', e);
+                console.warn('Audio blocked or not supported');
             }
         }
 
@@ -149,9 +172,7 @@
                     osc.start(audioCtx.currentTime + index * 0.08);
                     osc.stop(audioCtx.currentTime + index * 0.08 + 0.15);
                 });
-            } catch (e) {
-                // 忽略音訊播放錯誤，確保遊戲主邏輯不中斷
-            }
+            } catch (e) {}
         }
 
         function playCrashSound() {
@@ -169,26 +190,26 @@
                 gain.connect(audioCtx.destination);
                 osc.start();
                 osc.stop(audioCtx.currentTime + 0.5);
-            } catch (e) {
-                // 忽略音訊播放錯誤
-            }
+            } catch (e) {}
         }
 
-        // --- 遊戲狀態資料 ---
+        // 遊戲狀態資料
         let planes = [];
         let score = 0;
         let isPlaying = false;
+        let isPaused = false;
         let spawnTimer = null;
         let sweepAngle = 0;
 
         let selectedPlane = null;
-        let isDragging = false;
-        let dragCurrentPos = { x: 0, y: 0 };
+        let mousePos = { x: 0, y: 0 }; // 用於即時繪製虛線預覽
 
         function spawnPlane() {
-            if (!isPlaying) return;
+            if (!isPlaying || isPaused) return;
 
-            const flightCode = 'CI' + Math.floor(100 + Math.random() * 900);
+            const airline = airlines[Math.floor(Math.random() * airlines.length)];
+            const flightCode = airline + Math.floor(100 + Math.random() * 900);
+            
             const side = Math.floor(Math.random() * 4);
             let x, y, targetX, targetY;
             const padding = 30;
@@ -208,24 +229,27 @@
             }
 
             const angle = Math.atan2(targetY - y, targetX - x);
-            const speed = 0.45 + Math.random() * 0.35;
+            const speed = 0.4 + Math.random() * 0.3;
 
             const headingDeg = (angle * 180 / Math.PI + 360) % 360;
             const isEastbound = headingDeg >= 0 && headingDeg < 180;
-            const flightRules = Math.random() > 0.35 ? 'IFR' : 'VFR';
+            
+            // 隨機決定是降落機 [ARR] 還是過境高空機 [ENR]
+            const isArrival = Math.random() < 0.6; 
+            const flightRules = isArrival ? 'ARR' : 'ENR';
             let altitude;
 
-            if (flightRules === 'IFR') {
-                const altitudes = isEastbound ? [3000, 5000, 7000] : [4000, 6000, 8000];
-                altitude = altitudes[Math.floor(Math.random() * altitudes.length)];
+            if (isArrival) {
+                // 降落機統一配給進場高度 3000 呎
+                altitude = 3000;
             } else {
-                const altitudes = isEastbound ? [3500, 5500] : [4500, 6500];
-                altitude = altitudes[Math.floor(Math.random() * altitudes.length)];
+                // 過境高空機依照 IFR/VFR 規則配給高空層
+                altitude = isEastbound ? 7000 : 8000;
             }
 
             planes.push({
                 id: flightCode,
-                rules: flightRules,
+                type: flightRules,
                 x: x,
                 y: y,
                 vx: Math.cos(angle) * speed,
@@ -244,6 +268,13 @@
         function updateUI() {
             document.getElementById('plane-count').textContent = planes.length;
             document.getElementById('score').textContent = score;
+
+            const infoEl = document.getElementById('selected-plane-info');
+            if (selectedPlane) {
+                infoEl.textContent = `${selectedPlane.id} [${selectedPlane.type}] - FL${Math.floor(selectedPlane.altitude/100)}`;
+            } else {
+                infoEl.textContent = '未選取 (請點擊畫布上飛機)';
+            }
         }
 
         function startGame() {
@@ -254,8 +285,9 @@
             planes = [];
             score = 0;
             isPlaying = true;
+            isPaused = false;
             selectedPlane = null;
-            isDragging = false;
+            document.getElementById('pause-btn').textContent = '暫停';
             updateUI();
 
             clearInterval(spawnTimer);
@@ -265,47 +297,64 @@
             setTimeout(spawnPlane, 1800);
         }
 
-        canvas.addEventListener('mousedown', (e) => {
+        function togglePause() {
             if (!isPlaying) return;
-            const rect = canvas.getBoundingClientRect();
-            const mouseX = e.clientX - rect.left;
-            const mouseY = e.clientY - rect.top;
+            isPaused = !isPaused;
+            document.getElementById('pause-btn').textContent = isPaused ? '繼續' : '暫停';
+        }
 
-            selectedPlane = null;
+        function adjustAltitude(amount) {
+            if (!selectedPlane) return;
+            selectedPlane.altitude = Math.max(1000, Math.min(10000, selectedPlane.altitude + amount));
+            updateUI();
+        }
+
+        // --- 點擊式航向設定與滑鼠互動 ---
+        canvas.addEventListener('mousemove', (e) => {
+            const rect = canvas.getBoundingClientRect();
+            mousePos.x = e.clientX - rect.left;
+            mousePos.y = e.clientY - rect.top;
+        });
+
+        canvas.addEventListener('click', (e) => {
+            if (!isPlaying || isPaused) return;
+            const rect = canvas.getBoundingClientRect();
+            const clickX = e.clientX - rect.left;
+            const clickY = e.clientY - rect.top;
+
+            // 檢查是否點擊了某架飛機
+            let clickedPlane = null;
             for (let p of planes) {
                 if (p.isLanding) continue;
-                const dist = Math.hypot(p.x - mouseX, p.y - mouseY);
-                if (dist <= 22) {
-                    selectedPlane = p;
-                    isDragging = true;
-                    dragCurrentPos = { x: mouseX, y: mouseY };
+                const dist = Math.hypot(p.x - clickX, p.y - clickY);
+                if (dist <= 24) {
+                    clickedPlane = p;
                     break;
                 }
             }
-        });
 
-        canvas.addEventListener('mousemove', (e) => {
-            if (!isDragging || !selectedPlane) return;
-            const rect = canvas.getBoundingClientRect();
-            dragCurrentPos = {
-                x: e.clientX - rect.left,
-                y: e.clientY - rect.top
-            };
-        });
-
-        canvas.addEventListener('mouseup', () => {
-            if (isDragging && selectedPlane) {
-                const angle = Math.atan2(dragCurrentPos.y - selectedPlane.y, dragCurrentPos.x - selectedPlane.x);
+            if (clickedPlane) {
+                // 如果點到了飛機，選取它
+                selectedPlane = clickedPlane;
+                updateUI();
+            } else if (selectedPlane) {
+                // 如果已經有選中飛機，且點擊了空白處，設定新航向！
+                const angle = Math.atan2(clickY - selectedPlane.y, clickX - selectedPlane.x);
                 selectedPlane.vx = Math.cos(angle) * selectedPlane.speedValue;
                 selectedPlane.vy = Math.sin(angle) * selectedPlane.speedValue;
+                
+                // 轉向完成後取消選取
+                selectedPlane = null;
+                updateUI();
             }
-            isDragging = false;
-            selectedPlane = null;
         });
 
         function gameLoop() {
-            if (isPlaying) {
+            if (isPlaying && !isPaused) {
                 update();
+                render();
+            } else if (isPlaying && isPaused) {
+                // 暫停時僅渲染畫面，停止物理更新
                 render();
             }
             requestAnimationFrame(gameLoop);
@@ -316,6 +365,7 @@
 
             planes.forEach(p => p.isWarning = false);
 
+            // 衝突檢測 (高度差 < 1000 呎)
             for (let i = 0; i < planes.length; i++) {
                 for (let j = i + 1; j < planes.length; j++) {
                     let p1 = planes[i];
@@ -338,6 +388,7 @@
                 }
             }
 
+            // 更新位置與降落判定
             for (let i = planes.length - 1; i >= 0; i--) {
                 let p = planes[i];
 
@@ -353,6 +404,7 @@
                 p.x += p.vx;
                 p.y += p.vy;
 
+                // 雷達回波閃爍邏輯
                 const planeAngle = Math.atan2(p.y - CENTER_Y, p.x - CENTER_X);
                 let angleDiff = Math.abs(sweepAngle - planeAngle);
                 if (angleDiff > Math.PI) angleDiff = Math.PI * 2 - angleDiff;
@@ -363,13 +415,15 @@
                     p.flashAlpha = Math.max(0.25, p.flashAlpha * 0.95);
                 }
 
+                // 嚴格降落檢測：必須是 [ARR]、高度 <= 3000 呎、且落入跑道區
                 for (let rw of runways) {
                     if (
+                        p.type === 'ARR' &&
                         p.x >= rw.x && p.x <= rw.x + rw.w &&
                         p.y >= rw.y && p.y <= rw.y + rw.h &&
                         p.altitude <= 3000
                     ) {
-                        score += 150;
+                        score += 200;
                         p.isLanding = true;
                         playLandSound();
                         updateUI();
@@ -396,6 +450,7 @@
             ctx.fillStyle = 'rgba(2, 6, 23, 0.35)';
             ctx.fillRect(0, 0, WIDTH, HEIGHT);
 
+            // 繪製雙跑道與雙向編號 (05 / 23)
             runways.forEach(rw => {
                 ctx.fillStyle = '#1e293b';
                 ctx.fillRect(rw.x, rw.y, rw.w, rw.h);
@@ -418,22 +473,24 @@
                 ctx.setLineDash([]);
             });
 
-            if (isDragging && selectedPlane) {
+            // **即時航向預覽虛線（當已選中飛機時，跟隨滑鼠顯示黃色虛線）**
+            if (selectedPlane) {
                 ctx.strokeStyle = '#facc15';
                 ctx.lineWidth = 1.5;
                 ctx.setLineDash([4, 4]);
                 ctx.beginPath();
                 ctx.moveTo(selectedPlane.x, selectedPlane.y);
-                ctx.lineTo(dragCurrentPos.x, dragCurrentPos.y);
+                ctx.lineTo(mousePos.x, mousePos.y);
                 ctx.stroke();
                 ctx.setLineDash([]);
 
                 ctx.fillStyle = '#facc15';
                 ctx.beginPath();
-                ctx.arc(dragCurrentPos.x, dragCurrentPos.y, 4, 0, Math.PI * 2);
+                ctx.arc(mousePos.x, mousePos.y, 4, 0, Math.PI * 2);
                 ctx.fill();
             }
 
+            // 繪製所有飛機
             planes.forEach(p => {
                 const isSelected = (selectedPlane === p);
 
@@ -479,9 +536,11 @@
                 ctx.lineTo(p.x - p.vx * 20, p.y - p.vy * 20);
                 ctx.stroke();
 
-                ctx.fillStyle = p.isWarning ? `rgba(252, 165, 165, ${Math.max(0.5, p.flashAlpha)})` : (isSelected ? '#fef08a' : `rgba(134, 239, 172, ${Math.max(0.5, p.flashAlpha)})`);
+                // 標籤顯示：航班代碼、[ARR]/[ENR]、高度與速度
+                const labelColor = p.type === 'ARR' ? '#fbbf24' : '#86efac';
+                ctx.fillStyle = p.isWarning ? '#fca5a5' : (isSelected ? '#fef08a' : labelColor);
                 ctx.font = '10px monospace';
-                ctx.fillText(`${p.id} [${p.rules}]`, p.x + 12, p.y - 8);
+                ctx.fillText(`${p.id} [${p.type}]`, p.x + 12, p.y - 8);
                 ctx.fillStyle = p.isWarning ? '#f87171' : `rgba(74, 222, 128, ${Math.max(0.5, p.flashAlpha)})`;
                 ctx.fillText(`FL${Math.floor(p.altitude / 100)} (${p.speedKts}kt)`, p.x + 12, p.y + 4);
             });
