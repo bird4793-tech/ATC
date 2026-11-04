@@ -35,25 +35,25 @@
     <!-- 主容器 -->
     <div class="w-full max-w-2xl bg-slate-900 rounded-2xl shadow-2xl overflow-hidden flex flex-col border border-emerald-900/50 p-5 gap-3 relative">
         
-        <!-- ================= 1. 上方狀態與控制列 ================= -->
-        <header class="flex justify-between items-center bg-slate-950/80 p-3.5 rounded-xl border border-emerald-900/40">
+        <!-- ================= 1. 上方狀態與控制列 (宇宙/科技明亮風格) ================= -->
+        <header class="flex justify-between items-center bg-slate-950/90 p-3.5 rounded-xl border border-emerald-900/50 shadow-lg">
             <div>
-                <h1 class="text-base font-bold tracking-wider text-emerald-400 flex items-center gap-2">
+                <h1 class="text-base font-bold tracking-wider text-emerald-400 flex items-center gap-2 font-mono">
                     <span class="inline-block w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
                     RCTP 桃園國際機場塔台管制
                 </h1>
-                <p class="text-[11px] text-emerald-600">點擊選取 $\rightarrow$ 預覽虛線 $\rightarrow$ 點擊轉向 | 支援高度層分層防撞</p>
+                <p class="text-[11px] text-emerald-600 font-mono">五邊進場航管模擬 | 垂直分離防撞 | 向量轉向導引</p>
             </div>
             <div class="flex items-center gap-3">
                 <div class="flex gap-2 text-xs font-mono">
-                    <div class="bg-slate-900 px-2.5 py-1 rounded-lg border border-emerald-900/60 text-emerald-300">
-                        🏆 <span id="score">0</span>
+                    <div class="bg-slate-900 px-2.5 py-1 rounded-lg border border-emerald-950 text-emerald-300">
+                        🏆 得分: <span id="score">0</span>
                     </div>
-                    <div class="bg-slate-900 px-2.5 py-1 rounded-lg border border-emerald-900/60 text-emerald-300">
-                        ✈️ <span id="plane-count">0</span>
+                    <div class="bg-slate-900 px-2.5 py-1 rounded-lg border border-emerald-950 text-emerald-300">
+                        ✈️ 空中: <span id="plane-count">0</span>
                     </div>
                 </div>
-                <button id="pause-btn" onclick="togglePause()" class="bg-emerald-900/60 hover:bg-emerald-800 text-emerald-300 px-3 py-1 rounded-lg border border-emerald-700/50 text-xs font-bold cursor-pointer transition">
+                <button id="pause-btn" onclick="togglePause()" class="bg-emerald-950 hover:bg-emerald-900 text-emerald-300 px-3 py-1 rounded-lg border border-emerald-700/50 text-xs font-bold cursor-pointer transition">
                     暫停
                 </button>
             </div>
@@ -77,13 +77,13 @@
             <!-- HTML5 Canvas 畫布 -->
             <canvas id="radarCanvas" width="600" height="600" class="block w-full max-w-[560px] aspect-square relative z-10 cursor-crosshair"></canvas>
             
-            <!-- 遊戲開始前的覆蓋提示畫面 -->
-            <div id="start-screen" class="absolute inset-0 bg-slate-950/85 backdrop-blur-xs flex flex-col items-center justify-center gap-3 p-4 z-30 text-center">
-                <h2 class="text-2xl font-black text-emerald-400">桃園機場管制總指揮</h2>
-                <p class="text-xs text-emerald-300 max-w-[320px]">
-                    請引導帶有 <span class="text-amber-300 font-bold">[ARR]</span> 標記、高度 $\le 3000$ 呎的航班降落 05L/05R 跑道！過境機 <span class="text-slate-400">[ENR]</span> 無需理會。點擊飛機後再點擊畫布可設定新航向。
+            <!-- 遊戲開始前的覆蓋提示畫面 (清洗冗餘字元，呈現清晰科技感) -->
+            <div id="start-screen" class="absolute inset-0 bg-slate-950/90 backdrop-blur-xs flex flex-col items-center justify-center gap-4 p-6 z-30 text-center">
+                <h2 class="text-2xl font-black text-emerald-400 tracking-wider font-mono">RCTP 塔台管制總指揮</h2>
+                <p class="text-xs text-emerald-300 max-w-[340px] leading-relaxed font-mono">
+                    引導標記為 <span class="text-amber-300 font-bold">[ARR]</span> 的進場航班，降落至 05L / 05R 跑道。請確實遵循五邊進場方向與高度限制 (≤ 3000 ft)。過境機 <span class="text-slate-400">[ENR]</span> 無需理會。點擊飛機即可選取並預覽轉向。
                 </p>
-                <button onclick="startGame()" class="bg-emerald-600 hover:bg-emerald-500 text-slate-950 font-bold px-6 py-2.5 rounded-xl shadow-lg transition active:scale-95 cursor-pointer text-sm">
+                <button onclick="startGame()" class="bg-emerald-600 hover:bg-emerald-500 text-slate-950 font-bold px-6 py-2.5 rounded-xl shadow-lg transition active:scale-95 cursor-pointer text-sm font-mono">
                     開始執勤 🚀
                 </button>
             </div>
@@ -92,30 +92,30 @@
         <!-- ================= 3. 下方選中飛機控制面板 (高度調整) ================= -->
         <div id="control-panel" class="bg-slate-950/90 p-3 rounded-xl border border-emerald-900/50 flex justify-between items-center text-xs">
             <div class="flex items-center gap-2">
-                <span class="text-slate-400">選中航機：</span>
+                <span class="text-slate-400 font-mono">選中航機：</span>
                 <span id="selected-plane-info" class="font-mono text-amber-300 font-bold">未選取 (點擊畫布上飛機)</span>
             </div>
-            <div class="flex items-center gap-2">
+            <div class="flex items-center gap-2 font-mono">
                 <span class="text-slate-400">高度指令:</span>
-                <button onclick="adjustAltitude(-1000)" class="bg-slate-800 hover:bg-slate-700 text-emerald-300 px-2.5 py-1 rounded border border-emerald-900/60 cursor-pointer active:scale-95">下降 -1000ft</button>
-                <button onclick="adjustAltitude(1000)" class="bg-slate-800 hover:bg-slate-700 text-emerald-300 px-2.5 py-1 rounded border border-emerald-900/60 cursor-pointer active:scale-95">爬升 +1000ft</button>
+                <button onclick="adjustAltitude(-1000)" class="bg-slate-900 hover:bg-slate-800 text-emerald-300 px-2.5 py-1 rounded border border-emerald-900/60 cursor-pointer active:scale-95 transition">下降 -1000ft</button>
+                <button onclick="adjustAltitude(1000)" class="bg-slate-900 hover:bg-slate-800 text-emerald-300 px-2.5 py-1 rounded border border-emerald-900/60 cursor-pointer active:scale-95 transition">爬升 +1000ft</button>
             </div>
         </div>
 
         <!-- 底部版權 -->
-        <footer class="text-center text-[10px] text-emerald-700">
+        <footer class="text-center text-[10px] text-emerald-700 font-mono">
             Vibe Coding - ATC Simulator RCTP Professional Edition
         </footer>
     </div>
 
     <!-- ================= 4. 遊戲結束彈窗 Modal ================= -->
-    <div id="game-over-modal" class="fixed inset-0 bg-black/80 backdrop-blur-sm hidden flex items-center justify-center p-4 z-50">
+    <div id="game-over-modal" class="fixed inset-0 bg-black/85 backdrop-blur-sm hidden flex items-center justify-center p-4 z-50">
         <div class="bg-slate-900 rounded-2xl p-6 w-full max-w-sm text-center shadow-2xl border-2 border-rose-600 flex flex-col gap-4">
             <div>
-                <h2 class="text-2xl font-black text-rose-500 mb-1">💥 空中相撞事故！</h2>
-                <p id="game-over-text" class="text-slate-300 text-xs">同高度層航機未保持安全距離發生碰撞。</p>
+                <h2 class="text-2xl font-black text-rose-500 mb-1 font-mono">💥 空中相撞事故！</h2>
+                <p id="game-over-text" class="text-slate-300 text-xs font-mono">同高度層航機未保持安全距離發生碰撞。</p>
             </div>
-            <button onclick="startGame()" class="w-full bg-emerald-600 hover:bg-emerald-500 text-slate-950 font-bold py-3 rounded-xl shadow-lg transition active:scale-95 cursor-pointer text-sm">
+            <button onclick="startGame()" class="w-full bg-emerald-600 hover:bg-emerald-500 text-slate-950 font-bold py-3 rounded-xl shadow-lg transition active:scale-95 cursor-pointer text-sm font-mono">
                 重新上任 🎮
             </button>
         </div>
@@ -200,6 +200,7 @@
 
         let selectedPlane = null;
         let mousePos = { x: 0, y: 0 };
+        let hoverPlane = null; // 用於懸停輔助視覺顯示
 
         function spawnPlane() {
             if (!isPlaying || isPaused) return;
@@ -267,7 +268,7 @@
             if (selectedPlane) {
                 infoEl.textContent = `${selectedPlane.id} [${selectedPlane.type}] - FL${Math.floor(selectedPlane.altitude/100)}`;
             } else {
-                infoEl.textContent = '未選取 (請點擊畫布上飛機)';
+                infoEl.textContent = '未選取 (點擊畫布上飛機)';
             }
         }
 
@@ -303,22 +304,21 @@
             updateUI();
         }
 
-        // --- 滑鼠移動與點擊選取（擴大點擊判定範圍至 45 像素） ---
+        // --- 滑鼠互動優化（判定半徑擴大至 60 像素，提供清晰懸停回饋） ---
         canvas.addEventListener('mousemove', (e) => {
             const rect = canvas.getBoundingClientRect();
             mousePos.x = e.clientX - rect.left;
             mousePos.y = e.clientY - rect.top;
 
-            // 檢查滑鼠是否靠近任一飛機，若靠近則改變游標為 pointer
-            let hoverAny = false;
+            hoverPlane = null;
             for (let p of planes) {
                 if (p.isLanding) continue;
-                if (Math.hypot(p.x - mousePos.x, p.y - mousePos.y) <= 45) {
-                    hoverAny = true;
+                if (Math.hypot(p.x - mousePos.x, p.y - mousePos.y) <= 60) {
+                    hoverPlane = p;
                     break;
                 }
             }
-            canvas.style.cursor = hoverAny ? 'pointer' : 'crosshair';
+            canvas.style.cursor = hoverPlane ? 'pointer' : 'crosshair';
         });
 
         canvas.addEventListener('click', (e) => {
@@ -327,12 +327,11 @@
             const clickX = e.clientX - rect.left;
             const clickY = e.clientY - rect.top;
 
-            // 檢查是否點擊了某架飛機（判定半徑擴大為 45 像素，點標籤附近也能輕鬆選中）
             let clickedPlane = null;
             for (let p of planes) {
                 if (p.isLanding) continue;
                 const dist = Math.hypot(p.x - clickX, p.y - clickY);
-                if (dist <= 45) {
+                if (dist <= 60) { // 點擊判定放大至 60 像素
                     clickedPlane = p;
                     break;
                 }
@@ -413,12 +412,15 @@
                     p.flashAlpha = Math.max(0.25, p.flashAlpha * 0.95);
                 }
 
+                // **五邊進場與嚴格降落航向判定**
+                // 飛機速度向量 vy 必須向下（> 0，代表向北進場降落 05 跑道），且高度 <= 3000 呎
                 for (let rw of runways) {
                     if (
                         p.type === 'ARR' &&
                         p.x >= rw.x && p.x <= rw.x + rw.w &&
                         p.y >= rw.y && p.y <= rw.y + rw.h &&
-                        p.altitude <= 3000
+                        p.altitude <= 3000 &&
+                        p.vy > 0 // 確保是順向進場（五邊正向切入）
                     ) {
                         score += 200;
                         p.isLanding = true;
@@ -447,6 +449,7 @@
             ctx.fillStyle = 'rgba(2, 6, 23, 0.35)';
             ctx.fillRect(0, 0, WIDTH, HEIGHT);
 
+            // 繪製雙跑道與雙向編號 (05 / 23)
             runways.forEach(rw => {
                 ctx.fillStyle = '#1e293b';
                 ctx.fillRect(rw.x, rw.y, rw.w, rw.h);
@@ -469,6 +472,7 @@
                 ctx.setLineDash([]);
             });
 
+            // 航向預覽虛線
             if (selectedPlane) {
                 ctx.strokeStyle = '#facc15';
                 ctx.lineWidth = 1.5;
@@ -485,8 +489,10 @@
                 ctx.fill();
             }
 
+            // 繪製所有飛機
             planes.forEach(p => {
                 const isSelected = (selectedPlane === p);
+                const isHovered = (hoverPlane === p);
 
                 if (p.isLanding) {
                     ctx.fillStyle = '#fbbf24';
@@ -494,6 +500,15 @@
                     ctx.arc(p.x, p.y, p.radius || 6, 0, Math.PI * 2);
                     ctx.fill();
                     return;
+                }
+
+                // 懸停時繪製半透明輔助點擊偵測圈 (讓玩家知道點得到)
+                if (isHovered && !isSelected) {
+                    ctx.strokeStyle = 'rgba(250, 204, 21, 0.4)';
+                    ctx.lineWidth = 1;
+                    ctx.beginPath();
+                    ctx.arc(p.x, p.y, 25, 0, Math.PI * 2);
+                    ctx.stroke();
                 }
 
                 if (p.isWarning) {
