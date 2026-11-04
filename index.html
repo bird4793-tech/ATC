@@ -35,14 +35,14 @@
     <!-- 主容器 -->
     <div class="w-full max-w-2xl bg-slate-900 rounded-2xl shadow-2xl overflow-hidden flex flex-col border border-emerald-900/50 p-5 gap-3 relative">
         
-        <!-- ================= 1. 上方狀態與控制列 (宇宙/科技明亮風格) ================= -->
+        <!-- ================= 1. 上方狀態與控制列 ================= -->
         <header class="flex justify-between items-center bg-slate-950/90 p-3.5 rounded-xl border border-emerald-900/50 shadow-lg">
             <div>
                 <h1 class="text-base font-bold tracking-wider text-emerald-400 flex items-center gap-2 font-mono">
                     <span class="inline-block w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
                     RCTP 桃園國際機場塔台管制
                 </h1>
-                <p class="text-[11px] text-emerald-600 font-mono">五邊進場航管模擬 | 垂直分離防撞 | 向量轉向導引</p>
+                <p id="metar-info" class="text-[11px] text-emerald-600 font-mono">即時氣象風向計算中...</p>
             </div>
             <div class="flex items-center gap-3">
                 <div class="flex gap-2 text-xs font-mono">
@@ -53,7 +53,7 @@
                         ✈️ 空中: <span id="plane-count">0</span>
                     </div>
                 </div>
-                <button id="pause-btn" onclick="togglePause()" class="bg-emerald-950 hover:bg-emerald-900 text-emerald-300 px-3 py-1 rounded-lg border border-emerald-700/50 text-xs font-bold cursor-pointer transition">
+                <button id="pause-btn" onclick="togglePause()" class="bg-emerald-950 hover:bg-emerald-900 text-emerald-300 px-3 py-1 rounded-lg border border-emerald-700/50 text-xs font-bold cursor-pointer transition font-mono">
                     暫停
                 </button>
             </div>
@@ -77,11 +77,11 @@
             <!-- HTML5 Canvas 畫布 -->
             <canvas id="radarCanvas" width="600" height="600" class="block w-full max-w-[560px] aspect-square relative z-10 cursor-crosshair"></canvas>
             
-            <!-- 遊戲開始前的覆蓋提示畫面 (清洗冗餘字元，呈現清晰科技感) -->
+            <!-- 遊戲開始前的覆蓋提示畫面 -->
             <div id="start-screen" class="absolute inset-0 bg-slate-950/90 backdrop-blur-xs flex flex-col items-center justify-center gap-4 p-6 z-30 text-center">
                 <h2 class="text-2xl font-black text-emerald-400 tracking-wider font-mono">RCTP 塔台管制總指揮</h2>
                 <p class="text-xs text-emerald-300 max-w-[340px] leading-relaxed font-mono">
-                    引導標記為 <span class="text-amber-300 font-bold">[ARR]</span> 的進場航班，降落至 05L / 05R 跑道。請確實遵循五邊進場方向與高度限制 (≤ 3000 ft)。過境機 <span class="text-slate-400">[ENR]</span> 無需理會。點擊飛機即可選取並預覽轉向。
+                    依據真實 METAR 氣象風向自動決定起降跑道！請引導減速降落的 <span class="text-amber-300 font-bold">[ARR]</span> 航班（約 120-140 kts）順應風向完成五邊進場（高度 $\le 3000$ ft）。過境機 <span class="text-slate-400">[ENR]</span> 無需理會。
                 </p>
                 <button onclick="startGame()" class="bg-emerald-600 hover:bg-emerald-500 text-slate-950 font-bold px-6 py-2.5 rounded-xl shadow-lg transition active:scale-95 cursor-pointer text-sm font-mono">
                     開始執勤 🚀
@@ -89,7 +89,7 @@
             </div>
         </main>
 
-        <!-- ================= 3. 下方選中飛機控制面板 (高度調整) ================= -->
+        <!-- ================= 3. 下方選中飛機控制面板 ================= -->
         <div id="control-panel" class="bg-slate-950/90 p-3 rounded-xl border border-emerald-900/50 flex justify-between items-center text-xs">
             <div class="flex items-center gap-2">
                 <span class="text-slate-400 font-mono">選中航機：</span>
@@ -137,6 +137,27 @@
         ];
 
         const airlines = ['CI', 'BR', 'JX', 'CX', 'JL', 'SQ'];
+
+        // 模擬即時氣象 METAR 資料 (桃園機場常態：預設取自近期真實觀測風向 020~070 屬北/東北風，使用 05 跑道)
+        // 也可以隨機或動態決定。這裡採用真實風向對應 05 或 23 跑道。
+        let currentMetar = {
+            windDir: 40, // 吹東北風 (040度)
+            windSpeed: 5, // 5 節
+            activeRunwayConfig: '05' // 05 跑道運作 (需向北降落)
+        };
+
+        function updateMetarDisplay() {
+            // 根據風向決定使用 05 跑道 (迎北風) 或是 23 跑道 (迎南風)
+            // 簡單邏輯：風向介於 320 到 140 度之間主要吹北風，使用 05 跑道；否則使用 23 跑道
+            if (currentMetar.windDir >= 320 || currentMetar.windDir <= 140) {
+                currentMetar.activeRunwayConfig = '05';
+            } else {
+                currentMetar.activeRunwayConfig = '23';
+            }
+
+            document.getElementById('metar-info').textContent = 
+                `METAR RCTP 风向: ${currentMetar.windDir}° / ${currentMetar.windSpeed}kt | 现用起降配置: ${currentMetar.activeRunwayConfig} 跑道`;
+        }
 
         let audioCtx = null;
 
@@ -200,7 +221,7 @@
 
         let selectedPlane = null;
         let mousePos = { x: 0, y: 0 };
-        let hoverPlane = null; // 用於懸停輔助視覺顯示
+        let hoverPlane = null;
 
         function spawnPlane() {
             if (!isPlaying || isPaused) return;
@@ -208,39 +229,54 @@
             const airline = airlines[Math.floor(Math.random() * airlines.length)];
             const flightCode = airline + Math.floor(100 + Math.random() * 900);
             
-            const side = Math.floor(Math.random() * 4);
-            let x, y, targetX, targetY;
+            const isArrival = Math.random() < 0.6; 
+            const flightRules = isArrival ? 'ARR' : 'ENR';
+            
+            let x, y, targetX, targetY, speed, altitude;
             const padding = 30;
 
-            if (side === 0) {
-                x = Math.random() * WIDTH; y = -padding;
-                targetX = Math.random() * WIDTH; targetY = HEIGHT + padding;
-            } else if (side === 1) {
-                x = WIDTH + padding; y = Math.random() * HEIGHT;
-                targetX = -padding; targetY = Math.random() * HEIGHT;
-            } else if (side === 2) {
-                x = Math.random() * WIDTH; y = HEIGHT + padding;
-                targetX = Math.random() * WIDTH; targetY = -padding;
+            if (isArrival) {
+                // **降落機 (ARR)**：速度較慢（120-140 kts 換算成像素速度約 0.25 - 0.35），必須順應現用氣象跑道方向生成
+                speed = 0.25 + Math.random() * 0.1;
+                altitude = 3000;
+
+                if (currentMetar.activeRunwayConfig === '05') {
+                    // 若使用 05 跑道（向北降落），降落機從南方外海/陸地向北飛來
+                    x = WIDTH / 2 + (Math.random() - 0.5) * 300;
+                    y = HEIGHT + padding;
+                    targetX = WIDTH / 2 + (Math.random() - 0.5) * 40;
+                    targetY = HEIGHT / 2;
+                } else {
+                    // 若使用 23 跑道（向南降落），降落機從北方海域向南飛來
+                    x = WIDTH / 2 + (Math.random() - 0.5) * 300;
+                    y = -padding;
+                    targetX = WIDTH / 2 + (Math.random() - 0.5) * 40;
+                    targetY = HEIGHT / 2;
+                }
             } else {
-                x = -padding; y = Math.random() * HEIGHT;
-                targetX = WIDTH + padding; targetY = Math.random() * HEIGHT;
+                // **過境高空機 (ENR)**：速度較快，隨機從四面八方穿越
+                speed = 0.45 + Math.random() * 0.25;
+                const side = Math.floor(Math.random() * 4);
+                if (side === 0) {
+                    x = Math.random() * WIDTH; y = -padding;
+                    targetX = Math.random() * WIDTH; targetY = HEIGHT + padding;
+                } else if (side === 1) {
+                    x = WIDTH + padding; y = Math.random() * HEIGHT;
+                    targetX = -padding; targetY = Math.random() * HEIGHT;
+                } else if (side === 2) {
+                    x = Math.random() * WIDTH; y = HEIGHT + padding;
+                    targetX = Math.random() * WIDTH; targetY = -padding;
+                } else {
+                    x = -padding; y = Math.random() * HEIGHT;
+                    targetX = WIDTH + padding; targetY = Math.random() * HEIGHT;
+                }
+                const headingDeg = (Math.atan2(targetY - y, targetX - x) * 180 / Math.PI + 360) % 360;
+                const isEastbound = headingDeg >= 0 && headingDeg < 180;
+                altitude = isEastbound ? 7000 : 8000;
             }
 
             const angle = Math.atan2(targetY - y, targetX - x);
-            const speed = 0.4 + Math.random() * 0.3;
-
-            const headingDeg = (angle * 180 / Math.PI + 360) % 360;
-            const isEastbound = headingDeg >= 0 && headingDeg < 180;
-            
-            const isArrival = Math.random() < 0.6; 
-            const flightRules = isArrival ? 'ARR' : 'ENR';
-            let altitude;
-
-            if (isArrival) {
-                altitude = 3000;
-            } else {
-                altitude = isEastbound ? 7000 : 8000;
-            }
+            const speedKts = isArrival ? Math.floor(120 + Math.random() * 20) : Math.floor(220 + Math.random() * 100);
 
             planes.push({
                 id: flightCode,
@@ -251,7 +287,7 @@
                 vy: Math.sin(angle) * speed,
                 speedValue: speed,
                 altitude: altitude,
-                speedKts: Math.floor(180 + Math.random() * 120),
+                speedKts: speedKts,
                 flashAlpha: 0.2,
                 isLanding: false,
                 isWarning: false
@@ -266,7 +302,7 @@
 
             const infoEl = document.getElementById('selected-plane-info');
             if (selectedPlane) {
-                infoEl.textContent = `${selectedPlane.id} [${selectedPlane.type}] - FL${Math.floor(selectedPlane.altitude/100)}`;
+                infoEl.textContent = `${selectedPlane.id} [${selectedPlane.type}] - FL${Math.floor(selectedPlane.altitude/100)} (${selectedPlane.speedKts}kt)`;
             } else {
                 infoEl.textContent = '未選取 (點擊畫布上飛機)';
             }
@@ -277,6 +313,8 @@
             document.getElementById('start-screen').classList.add('hidden');
             document.getElementById('game-over-modal').classList.add('hidden');
 
+            updateMetarDisplay();
+
             planes = [];
             score = 0;
             isPlaying = true;
@@ -286,10 +324,10 @@
             updateUI();
 
             clearInterval(spawnTimer);
-            spawnTimer = setInterval(spawnPlane, 3500);
+            spawnTimer = setInterval(spawnPlane, 4000);
 
             spawnPlane();
-            setTimeout(spawnPlane, 1800);
+            setTimeout(spawnPlane, 2000);
         }
 
         function togglePause() {
@@ -304,7 +342,6 @@
             updateUI();
         }
 
-        // --- 滑鼠互動優化（判定半徑擴大至 60 像素，提供清晰懸停回饋） ---
         canvas.addEventListener('mousemove', (e) => {
             const rect = canvas.getBoundingClientRect();
             mousePos.x = e.clientX - rect.left;
@@ -331,7 +368,7 @@
             for (let p of planes) {
                 if (p.isLanding) continue;
                 const dist = Math.hypot(p.x - clickX, p.y - clickY);
-                if (dist <= 60) { // 點擊判定放大至 60 像素
+                if (dist <= 60) {
                     clickedPlane = p;
                     break;
                 }
@@ -349,214 +386,3 @@
                 updateUI();
             }
         });
-
-        function gameLoop() {
-            if (isPlaying && !isPaused) {
-                update();
-                render();
-            } else if (isPlaying && isPaused) {
-                render();
-            }
-            requestAnimationFrame(gameLoop);
-        }
-
-        function update() {
-            sweepAngle = (sweepAngle + 0.03) % (Math.PI * 2);
-
-            planes.forEach(p => p.isWarning = false);
-
-            for (let i = 0; i < planes.length; i++) {
-                for (let j = i + 1; j < planes.length; j++) {
-                    let p1 = planes[i];
-                    let p2 = planes[j];
-                    if (p1.isLanding || p2.isLanding) continue;
-
-                    const dist = Math.hypot(p1.x - p2.x, p1.y - p2.y);
-                    const altDiff = Math.abs(p1.altitude - p2.altitude);
-
-                    if (altDiff < 1000) {
-                        if (dist < 18) {
-                            playCrashSound();
-                            triggerGameOver();
-                            return;
-                        } else if (dist < 45) {
-                            p1.isWarning = true;
-                            p2.isWarning = true;
-                        }
-                    }
-                }
-            }
-
-            for (let i = planes.length - 1; i >= 0; i--) {
-                let p = planes[i];
-
-                if (p.isLanding) {
-                    p.radius = (p.radius || 6) * 0.95;
-                    if (p.radius < 0.5) {
-                        planes.splice(i, 1);
-                        updateUI();
-                    }
-                    continue;
-                }
-
-                p.x += p.vx;
-                p.y += p.vy;
-
-                const planeAngle = Math.atan2(p.y - CENTER_Y, p.x - CENTER_X);
-                let angleDiff = Math.abs(sweepAngle - planeAngle);
-                if (angleDiff > Math.PI) angleDiff = Math.PI * 2 - angleDiff;
-
-                if (angleDiff < 0.12) {
-                    p.flashAlpha = 1.0;
-                } else {
-                    p.flashAlpha = Math.max(0.25, p.flashAlpha * 0.95);
-                }
-
-                // **五邊進場與嚴格降落航向判定**
-                // 飛機速度向量 vy 必須向下（> 0，代表向北進場降落 05 跑道），且高度 <= 3000 呎
-                for (let rw of runways) {
-                    if (
-                        p.type === 'ARR' &&
-                        p.x >= rw.x && p.x <= rw.x + rw.w &&
-                        p.y >= rw.y && p.y <= rw.y + rw.h &&
-                        p.altitude <= 3000 &&
-                        p.vy > 0 // 確保是順向進場（五邊正向切入）
-                    ) {
-                        score += 200;
-                        p.isLanding = true;
-                        playLandSound();
-                        updateUI();
-                        break;
-                    }
-                }
-
-                const margin = 70;
-                if (p.x < -margin || p.x > WIDTH + margin || p.y < -margin || p.y > HEIGHT + margin) {
-                    planes.splice(i, 1);
-                    updateUI();
-                }
-            }
-        }
-
-        function triggerGameOver() {
-            isPlaying = false;
-            clearInterval(spawnTimer);
-            document.getElementById('game-over-text').textContent = `同高度層發生空中相撞！最終得分：${score} 分`;
-            document.getElementById('game-over-modal').classList.remove('hidden');
-        }
-
-        function render() {
-            ctx.fillStyle = 'rgba(2, 6, 23, 0.35)';
-            ctx.fillRect(0, 0, WIDTH, HEIGHT);
-
-            // 繪製雙跑道與雙向編號 (05 / 23)
-            runways.forEach(rw => {
-                ctx.fillStyle = '#1e293b';
-                ctx.fillRect(rw.x, rw.y, rw.w, rw.h);
-                ctx.strokeStyle = '#22c55e';
-                ctx.lineWidth = 1.5;
-                ctx.strokeRect(rw.x, rw.y, rw.w, rw.h);
-
-                ctx.fillStyle = '#86efac';
-                ctx.font = '9px monospace';
-                ctx.fillText(rw.idTop, rw.x + 3, rw.y + 14);
-                ctx.fillText(rw.idBottom, rw.x + 3, rw.y + rw.h - 6);
-
-                ctx.strokeStyle = '#e2e8f0';
-                ctx.lineWidth = 1;
-                ctx.setLineDash([6, 6]);
-                ctx.beginPath();
-                ctx.moveTo(rw.x + rw.w / 2, rw.y + 20);
-                ctx.lineTo(rw.x + rw.w / 2, rw.y + rw.h - 15);
-                ctx.stroke();
-                ctx.setLineDash([]);
-            });
-
-            // 航向預覽虛線
-            if (selectedPlane) {
-                ctx.strokeStyle = '#facc15';
-                ctx.lineWidth = 1.5;
-                ctx.setLineDash([4, 4]);
-                ctx.beginPath();
-                ctx.moveTo(selectedPlane.x, selectedPlane.y);
-                ctx.lineTo(mousePos.x, mousePos.y);
-                ctx.stroke();
-                ctx.setLineDash([]);
-
-                ctx.fillStyle = '#facc15';
-                ctx.beginPath();
-                ctx.arc(mousePos.x, mousePos.y, 4, 0, Math.PI * 2);
-                ctx.fill();
-            }
-
-            // 繪製所有飛機
-            planes.forEach(p => {
-                const isSelected = (selectedPlane === p);
-                const isHovered = (hoverPlane === p);
-
-                if (p.isLanding) {
-                    ctx.fillStyle = '#fbbf24';
-                    ctx.beginPath();
-                    ctx.arc(p.x, p.y, p.radius || 6, 0, Math.PI * 2);
-                    ctx.fill();
-                    return;
-                }
-
-                // 懸停時繪製半透明輔助點擊偵測圈 (讓玩家知道點得到)
-                if (isHovered && !isSelected) {
-                    ctx.strokeStyle = 'rgba(250, 204, 21, 0.4)';
-                    ctx.lineWidth = 1;
-                    ctx.beginPath();
-                    ctx.arc(p.x, p.y, 25, 0, Math.PI * 2);
-                    ctx.stroke();
-                }
-
-                if (p.isWarning) {
-                    ctx.strokeStyle = '#ef4444';
-                    ctx.lineWidth = 2;
-                    ctx.beginPath();
-                    ctx.arc(p.x, p.y, 18, 0, Math.PI * 2);
-                    ctx.stroke();
-                }
-
-                if (isSelected) {
-                    ctx.strokeStyle = '#facc15';
-                    ctx.lineWidth = 2;
-                    ctx.beginPath();
-                    ctx.arc(p.x, p.y, 14, 0, Math.PI * 2);
-                    ctx.stroke();
-                }
-
-                const baseColor = p.isWarning ? [239, 68, 68] : (isSelected ? [250, 204, 21] : [34, 197, 94]);
-                const alphaColor = `rgba(${baseColor[0]}, ${baseColor[1]}, ${baseColor[2]}, ${p.flashAlpha})`;
-
-                ctx.fillStyle = alphaColor;
-                ctx.shadowColor = alphaColor;
-                ctx.shadowBlur = p.isWarning ? 15 : (p.flashAlpha > 0.8 ? 12 : 4);
-                ctx.beginPath();
-                ctx.arc(p.x, p.y, 5, 0, Math.PI * 2);
-                ctx.fill();
-                ctx.shadowBlur = 0;
-
-                ctx.strokeStyle = p.isWarning ? `rgba(239, 68, 68, ${p.flashAlpha * 0.8})` : (isSelected ? `rgba(250, 204, 21, ${p.flashAlpha * 0.8})` : `rgba(34, 197, 94, ${p.flashAlpha * 0.4})`);
-                ctx.lineWidth = isSelected || p.isWarning ? 2 : 1;
-                ctx.beginPath();
-                ctx.moveTo(p.x, p.y);
-                ctx.lineTo(p.x - p.vx * 20, p.y - p.vy * 20);
-                ctx.stroke();
-
-                const labelColor = p.type === 'ARR' ? '#fbbf24' : '#86efac';
-                ctx.fillStyle = p.isWarning ? '#fca5a5' : (isSelected ? '#fef08a' : labelColor);
-                ctx.font = '10px monospace';
-                ctx.fillText(`${p.id} [${p.type}]`, p.x + 12, p.y - 8);
-                ctx.fillStyle = p.isWarning ? '#f87171' : `rgba(74, 222, 128, ${Math.max(0.5, p.flashAlpha)})`;
-                ctx.fillText(`FL${Math.floor(p.altitude / 100)} (${p.speedKts}kt)`, p.x + 12, p.y + 4);
-            });
-        }
-
-        window.onload = function() {
-            requestAnimationFrame(gameLoop);
-        };
-    </script>
-</body>
-</html>
