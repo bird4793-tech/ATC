@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ATC 飛航管制 - 雷達回波閃爍版</title>
+    <title>ATC 飛航管制 - 桃園機場專業版 v2</title>
     <!-- 引入 Tailwind CSS CDN -->
     <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
     <style>
@@ -17,7 +17,7 @@
             width: 50%; height: 100%;
             background: linear-gradient(90deg, rgba(34, 197, 94, 0) 0%, rgba(34, 197, 94, 0.2) 100%);
             transform-origin: left center;
-            animation: radar-sweep 6s linear infinite;
+            animation: radar-sweep 8s linear infinite;
             pointer-events: none;
             border-top-right-radius: 100%;
         }
@@ -40,9 +40,9 @@
             <div>
                 <h1 class="text-base font-bold tracking-wider text-emerald-400 flex items-center gap-2">
                     <span class="inline-block w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
-                    RCTP 桃園國際機場塔台管制 (雷達回波閃爍版)
+                    RCTP 桃園國際機場塔台管制
                 </h1>
-                <p class="text-[11px] text-emerald-600">光束掃過才閃亮：還原傳統機械雷達與殘影特性</p>
+                <p class="text-[11px] text-emerald-600">雙向跑道 (05/23) 與 VFR/IFR 高度垂直分離</p>
             </div>
             <div class="flex gap-2 text-xs font-mono">
                 <div class="bg-slate-900 px-3 py-1 rounded-lg border border-emerald-900/60 text-emerald-300">
@@ -74,8 +74,8 @@
             
             <!-- 遊戲開始前的覆蓋提示畫面 -->
             <div id="start-screen" class="absolute inset-0 bg-slate-950/85 backdrop-blur-xs flex flex-col items-center justify-center gap-3 p-4 z-30 text-center">
-                <h2 class="text-2xl font-black text-emerald-400">雷達回波閃爍模擬</h2>
-                <p class="text-xs text-emerald-300 max-w-[300px]">飛機回波會隨著雷達光束掃過而瞬間閃亮！引導飛機降落並保持安全高度層。</p>
+                <h2 class="text-2xl font-black text-emerald-400">桃園機場管制總指揮</h2>
+                <p class="text-xs text-emerald-300 max-w-[300px]">引導 3000 呎進場高度的飛機降落 05L/05R 跑道！注意同高度層防撞規則。</p>
                 <button onclick="startGame()" class="bg-emerald-600 hover:bg-emerald-500 text-slate-950 font-bold px-6 py-2.5 rounded-xl shadow-lg transition active:scale-95 cursor-pointer text-sm">
                     開始執勤 🚀
                 </button>
@@ -84,7 +84,7 @@
 
         <!-- 底部版權 -->
         <footer class="text-center text-[10px] text-emerald-700">
-            Vibe Coding - ATC Simulator Sweep Flash Edition
+            Vibe Coding - ATC Simulator RCTP Professional Edition
         </footer>
     </div>
 
@@ -101,7 +101,7 @@
         </div>
     </div>
 
-    <!-- ================= 核心 JavaScript (包含光束掃描與回波閃爍邏輯) ================= -->
+    <!-- ================= 核心 JavaScript 邏輯 ================= -->
     <script>
         const canvas = document.getElementById('radarCanvas');
         const ctx = canvas.getContext('2d');
@@ -111,9 +111,10 @@
         const CENTER_X = WIDTH / 2;
         const CENTER_Y = HEIGHT / 2;
 
+        // --- 桃園機場 (RCTP) 雙平行跑道 (北端 05L/05R，南端 23R/23L) ---
         const runways = [
-            { id: '05L', x: WIDTH / 2 - 45, y: HEIGHT / 2 - 100, w: 24, h: 200 },
-            { id: '05R', x: WIDTH / 2 + 21, y: HEIGHT / 2 - 100, w: 24, h: 200 }
+            { idTop: '05L', idBottom: '23R', x: WIDTH / 2 - 45, y: HEIGHT / 2 - 100, w: 24, h: 200 },
+            { idTop: '05R', idBottom: '23L', x: WIDTH / 2 + 21, y: HEIGHT / 2 - 100, w: 24, h: 200 }
         ];
 
         // --- Web Audio API 音效合成器設定 ---
@@ -167,7 +168,7 @@
         let score = 0;
         let isPlaying = false;
         let spawnTimer = null;
-        let sweepAngle = 0; // 雷達光束旋轉角度
+        let sweepAngle = 0;
 
         let selectedPlane = null;
         let isDragging = false;
@@ -221,7 +222,7 @@
                 speedValue: speed,
                 altitude: altitude,
                 speedKts: Math.floor(180 + Math.random() * 120),
-                flashAlpha: 0.2, // 回波初始亮度 (殘影)
+                flashAlpha: 0.2,
                 isLanding: false,
                 isWarning: false
             });
@@ -300,7 +301,6 @@
         }
 
         function update() {
-            // **更新光束旋轉角度 (配合 CSS 6秒一圈，每秒約 1.04 弧度)**
             sweepAngle = (sweepAngle + 0.03) % (Math.PI * 2);
 
             planes.forEach(p => p.isWarning = false);
@@ -328,7 +328,7 @@
                 }
             }
 
-            // 更新位置與回波亮度
+            // 更新位置與跑道降落判定
             for (let i = planes.length - 1; i >= 0; i--) {
                 let p = planes[i];
 
@@ -344,153 +344,5 @@
                 p.x += p.vx;
                 p.y += p.vy;
 
-                // **雷達回波閃爍邏輯 (Sweep Flash Detection)**
-                // 計算飛機相對於畫布中心的絕對角度
-                const planeAngle = Math.atan2(p.y - CENTER_Y, p.x - CENTER_X);
-                // 計算光束角度與飛機角度的夾角差
-                let angleDiff = Math.abs(sweepAngle - planeAngle);
-                if (angleDiff > Math.PI) angleDiff = Math.PI * 2 - angleDiff;
-
-                // 如果光束正好掃過（差距小於 0.12 弧度），回波瞬間達到最亮 (1.0)
-                if (angleDiff < 0.12) {
-                    p.flashAlpha = 1.0;
-                } else {
-                    // 否則每一影格逐漸黯淡（模擬殘影）
-                    p.flashAlpha = Math.max(0.25, p.flashAlpha * 0.95);
-                }
-
-                // 跑道降落檢測
-                for (let rw of runways) {
-                    if (
-                        p.x >= rw.x && p.x <= rw.x + rw.w &&
-                        p.y >= rw.y && p.y <= rw.y + rw.h
-                    ) {
-                        score += 150;
-                        p.isLanding = true;
-                        playLandSound();
-                        updateUI();
-                        break;
-                    }
-                }
-
-                const margin = 70;
-                if (p.x < -margin || p.x > WIDTH + margin || p.y < -margin || p.y > HEIGHT + margin) {
-                    planes.splice(i, 1);
-                    updateUI();
-                }
-            }
-        }
-
-        function triggerGameOver() {
-            isPlaying = false;
-            clearInterval(spawnTimer);
-            document.getElementById('game-over-text').textContent = `同高度層發生空中相撞！最終得分：${score} 分`;
-            document.getElementById('game-over-modal').classList.remove('hidden');
-        }
-
-        function render() {
-            ctx.fillStyle = 'rgba(2, 6, 23, 0.35)';
-            ctx.fillRect(0, 0, WIDTH, HEIGHT);
-
-            // 繪製雙跑道
-            runways.forEach(rw => {
-                ctx.fillStyle = '#1e293b';
-                ctx.fillRect(rw.x, rw.y, rw.w, rw.h);
-                ctx.strokeStyle = '#22c55e';
-                ctx.lineWidth = 1.5;
-                ctx.strokeRect(rw.x, rw.y, rw.w, rw.h);
-
-                ctx.fillStyle = '#86efac';
-                ctx.font = '9px monospace';
-                ctx.fillText(rw.id, rw.x + 4, rw.y + 15);
-
-                ctx.strokeStyle = '#e2e8f0';
-                ctx.lineWidth = 1;
-                ctx.setLineDash([6, 6]);
-                ctx.beginPath();
-                ctx.moveTo(rw.x + rw.w / 2, rw.y + 25);
-                ctx.lineTo(rw.x + rw.w / 2, rw.y + rw.h - 10);
-                ctx.stroke();
-                ctx.setLineDash([]);
-            });
-
-            // 繪製拖曳引導線
-            if (isDragging && selectedPlane) {
-                ctx.strokeStyle = '#facc15';
-                ctx.lineWidth = 1.5;
-                ctx.setLineDash([4, 4]);
-                ctx.beginPath();
-                ctx.moveTo(selectedPlane.x, selectedPlane.y);
-                ctx.lineTo(dragCurrentPos.x, dragCurrentPos.y);
-                ctx.stroke();
-                ctx.setLineDash([]);
-
-                ctx.fillStyle = '#facc15';
-                ctx.beginPath();
-                ctx.arc(dragCurrentPos.x, dragCurrentPos.y, 4, 0, Math.PI * 2);
-                ctx.fill();
-            }
-
-            // 繪製所有飛機 (套用 flashAlpha 亮度)
-            planes.forEach(p => {
-                const isSelected = (selectedPlane === p);
-
-                if (p.isLanding) {
-                    ctx.fillStyle = '#fbbf24';
-                    ctx.beginPath();
-                    ctx.arc(p.x, p.y, p.radius || 6, 0, Math.PI * 2);
-                    ctx.fill();
-                    return;
-                }
-
-                if (p.isWarning) {
-                    ctx.strokeStyle = '#ef4444';
-                    ctx.lineWidth = 2;
-                    ctx.beginPath();
-                    ctx.arc(p.x, p.y, 18, 0, Math.PI * 2);
-                    ctx.stroke();
-                }
-
-                if (isSelected) {
-                    ctx.strokeStyle = '#facc15';
-                    ctx.lineWidth = 2;
-                    ctx.beginPath();
-                    ctx.arc(p.x, p.y, 14, 0, Math.PI * 2);
-                    ctx.stroke();
-                }
-
-                // 套用回波閃爍透明度 (flashAlpha)
-                const baseColor = p.isWarning ? [239, 68, 68] : (isSelected ? [250, 204, 21] : [34, 197, 94]);
-                const alphaColor = `rgba(${baseColor[0]}, ${baseColor[1]}, ${baseColor[2]}, ${p.flashAlpha})`;
-
-                ctx.fillStyle = alphaColor;
-                ctx.shadowColor = alphaColor;
-                ctx.shadowBlur = p.isWarning ? 15 : (p.flashAlpha > 0.8 ? 12 : 4);
-                ctx.beginPath();
-                ctx.arc(p.x, p.y, 5, 0, Math.PI * 2);
-                ctx.fill();
-                ctx.shadowBlur = 0;
-
-                // 航跡預測線也跟著亮度閃爍
-                ctx.strokeStyle = p.isWarning ? `rgba(239, 68, 68, ${p.flashAlpha * 0.8})` : (isSelected ? `rgba(250, 204, 21, ${p.flashAlpha * 0.8})` : `rgba(34, 197, 94, ${p.flashAlpha * 0.4})`);
-                ctx.lineWidth = isSelected || p.isWarning ? 2 : 1;
-                ctx.beginPath();
-                ctx.moveTo(p.x, p.y);
-                ctx.lineTo(p.x - p.vx * 20, p.y - p.vy * 20);
-                ctx.stroke();
-
-                // 航班文字標籤也隨光束閃爍
-                ctx.fillStyle = p.isWarning ? `rgba(252, 165, 165, ${Math.max(0.5, p.flashAlpha)})` : (isSelected ? '#fef08a' : `rgba(134, 239, 172, ${Math.max(0.5, p.flashAlpha)})`);
-                ctx.font = '10px monospace';
-                ctx.fillText(`${p.id} [${p.rules}]`, p.x + 12, p.y - 8);
-                ctx.fillStyle = p.isWarning ? '#f87171' : `rgba(74, 222, 128, ${Math.max(0.5, p.flashAlpha)})`;
-                ctx.fillText(`FL${Math.floor(p.altitude / 100)} (${p.speedKts}kt)`, p.x + 12, p.y + 4);
-            });
-        }
-
-        window.onload = function() {
-            requestAnimationFrame(gameLoop);
-        };
-    </script>
-</body>
-</html>
+                // 雷達回波閃爍邏輯
+                const planeAngle = Math.atan2(p.y -
