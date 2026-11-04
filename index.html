@@ -138,17 +138,13 @@
 
         const airlines = ['CI', 'BR', 'JX', 'CX', 'JL', 'SQ'];
 
-        // 模擬即時氣象 METAR 資料 (桃園機場常態：預設取自近期真實觀測風向 020~070 屬北/東北風，使用 05 跑道)
-        // 也可以隨機或動態決定。這裡採用真實風向對應 05 或 23 跑道。
         let currentMetar = {
-            windDir: 40, // 吹東北風 (040度)
-            windSpeed: 5, // 5 節
-            activeRunwayConfig: '05' // 05 跑道運作 (需向北降落)
+            windDir: 40,
+            windSpeed: 5,
+            activeRunwayConfig: '05'
         };
 
         function updateMetarDisplay() {
-            // 根據風向決定使用 05 跑道 (迎北風) 或是 23 跑道 (迎南風)
-            // 簡單邏輯：風向介於 320 到 140 度之間主要吹北風，使用 05 跑道；否則使用 23 跑道
             if (currentMetar.windDir >= 320 || currentMetar.windDir <= 140) {
                 currentMetar.activeRunwayConfig = '05';
             } else {
@@ -156,7 +152,7 @@
             }
 
             document.getElementById('metar-info').textContent = 
-                `METAR RCTP 风向: ${currentMetar.windDir}° / ${currentMetar.windSpeed}kt | 现用起降配置: ${currentMetar.activeRunwayConfig} 跑道`;
+                `METAR RCTP 風向: ${currentMetar.windDir}° / ${currentMetar.windSpeed}kt | 現用起降配置: ${currentMetar.activeRunwayConfig} 跑道`;
         }
 
         let audioCtx = null;
@@ -170,7 +166,7 @@
                     audioCtx.resume();
                 }
             } catch (e) {
-                console.warn('Audio blocked or not supported');
+                console.warn('Audio blocked or not supported', e);
             }
         }
 
@@ -236,25 +232,21 @@
             const padding = 30;
 
             if (isArrival) {
-                // **降落機 (ARR)**：速度較慢（120-140 kts 換算成像素速度約 0.25 - 0.35），必須順應現用氣象跑道方向生成
                 speed = 0.25 + Math.random() * 0.1;
                 altitude = 3000;
 
                 if (currentMetar.activeRunwayConfig === '05') {
-                    // 若使用 05 跑道（向北降落），降落機從南方外海/陸地向北飛來
                     x = WIDTH / 2 + (Math.random() - 0.5) * 300;
                     y = HEIGHT + padding;
                     targetX = WIDTH / 2 + (Math.random() - 0.5) * 40;
                     targetY = HEIGHT / 2;
                 } else {
-                    // 若使用 23 跑道（向南降落），降落機從北方海域向南飛來
                     x = WIDTH / 2 + (Math.random() - 0.5) * 300;
                     y = -padding;
                     targetX = WIDTH / 2 + (Math.random() - 0.5) * 40;
                     targetY = HEIGHT / 2;
                 }
             } else {
-                // **過境高空機 (ENR)**：速度較快，隨機從四面八方穿越
                 speed = 0.45 + Math.random() * 0.25;
                 const side = Math.floor(Math.random() * 4);
                 if (side === 0) {
@@ -309,9 +301,17 @@
         }
 
         function startGame() {
-            initAudio();
-            document.getElementById('start-screen').classList.add('hidden');
-            document.getElementById('game-over-modal').classList.add('hidden');
+            try {
+                initAudio();
+            } catch (e) {
+                console.warn('Audio init warning:', e);
+            }
+
+            const startScreen = document.getElementById('start-screen');
+            if (startScreen) startScreen.classList.add('hidden');
+
+            const gameOverModal = document.getElementById('game-over-modal');
+            if (gameOverModal) gameOverModal.classList.add('hidden');
 
             updateMetarDisplay();
 
@@ -449,14 +449,11 @@
                     p.flashAlpha = Math.max(0.25, p.flashAlpha * 0.95);
                 }
 
-                // **五邊進場與依現用跑道方向的嚴格降落判定**
                 for (let rw of runways) {
                     let validHeading = false;
                     if (currentMetar.activeRunwayConfig === '05' && p.vy < 0) {
-                        // 05 跑道需向北降落（vy < 0）
                         validHeading = true;
                     } else if (currentMetar.activeRunwayConfig === '23' && p.vy > 0) {
-                        // 23 跑道需向南降落（vy > 0）
                         validHeading = true;
                     }
 
