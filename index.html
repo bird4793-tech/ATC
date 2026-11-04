@@ -136,10 +136,8 @@
             { idTop: '05R', idBottom: '23L', x: WIDTH / 2 + 21, y: HEIGHT / 2 - 100, w: 24, h: 200 }
         ];
 
-        // 真實 RCTP 桃園機場航空公司代碼庫
         const airlines = ['CI', 'BR', 'JX', 'CX', 'JL', 'SQ'];
 
-        // Web Audio API 音效設定
         let audioCtx = null;
 
         function initAudio() {
@@ -193,7 +191,6 @@
             } catch (e) {}
         }
 
-        // 遊戲狀態資料
         let planes = [];
         let score = 0;
         let isPlaying = false;
@@ -202,7 +199,7 @@
         let sweepAngle = 0;
 
         let selectedPlane = null;
-        let mousePos = { x: 0, y: 0 }; // 用於即時繪製虛線預覽
+        let mousePos = { x: 0, y: 0 };
 
         function spawnPlane() {
             if (!isPlaying || isPaused) return;
@@ -234,16 +231,13 @@
             const headingDeg = (angle * 180 / Math.PI + 360) % 360;
             const isEastbound = headingDeg >= 0 && headingDeg < 180;
             
-            // 隨機決定是降落機 [ARR] 還是過境高空機 [ENR]
             const isArrival = Math.random() < 0.6; 
             const flightRules = isArrival ? 'ARR' : 'ENR';
             let altitude;
 
             if (isArrival) {
-                // 降落機統一配給進場高度 3000 呎
                 altitude = 3000;
             } else {
-                // 過境高空機依照 IFR/VFR 規則配給高空層
                 altitude = isEastbound ? 7000 : 8000;
             }
 
@@ -309,11 +303,22 @@
             updateUI();
         }
 
-        // --- 點擊式航向設定與滑鼠互動 ---
+        // --- 滑鼠移動與點擊選取（擴大點擊判定範圍至 45 像素） ---
         canvas.addEventListener('mousemove', (e) => {
             const rect = canvas.getBoundingClientRect();
             mousePos.x = e.clientX - rect.left;
             mousePos.y = e.clientY - rect.top;
+
+            // 檢查滑鼠是否靠近任一飛機，若靠近則改變游標為 pointer
+            let hoverAny = false;
+            for (let p of planes) {
+                if (p.isLanding) continue;
+                if (Math.hypot(p.x - mousePos.x, p.y - mousePos.y) <= 45) {
+                    hoverAny = true;
+                    break;
+                }
+            }
+            canvas.style.cursor = hoverAny ? 'pointer' : 'crosshair';
         });
 
         canvas.addEventListener('click', (e) => {
@@ -322,28 +327,25 @@
             const clickX = e.clientX - rect.left;
             const clickY = e.clientY - rect.top;
 
-            // 檢查是否點擊了某架飛機
+            // 檢查是否點擊了某架飛機（判定半徑擴大為 45 像素，點標籤附近也能輕鬆選中）
             let clickedPlane = null;
             for (let p of planes) {
                 if (p.isLanding) continue;
                 const dist = Math.hypot(p.x - clickX, p.y - clickY);
-                if (dist <= 24) {
+                if (dist <= 45) {
                     clickedPlane = p;
                     break;
                 }
             }
 
             if (clickedPlane) {
-                // 如果點到了飛機，選取它
                 selectedPlane = clickedPlane;
                 updateUI();
             } else if (selectedPlane) {
-                // 如果已經有選中飛機，且點擊了空白處，設定新航向！
                 const angle = Math.atan2(clickY - selectedPlane.y, clickX - selectedPlane.x);
                 selectedPlane.vx = Math.cos(angle) * selectedPlane.speedValue;
                 selectedPlane.vy = Math.sin(angle) * selectedPlane.speedValue;
                 
-                // 轉向完成後取消選取
                 selectedPlane = null;
                 updateUI();
             }
@@ -354,7 +356,6 @@
                 update();
                 render();
             } else if (isPlaying && isPaused) {
-                // 暫停時僅渲染畫面，停止物理更新
                 render();
             }
             requestAnimationFrame(gameLoop);
@@ -365,7 +366,6 @@
 
             planes.forEach(p => p.isWarning = false);
 
-            // 衝突檢測 (高度差 < 1000 呎)
             for (let i = 0; i < planes.length; i++) {
                 for (let j = i + 1; j < planes.length; j++) {
                     let p1 = planes[i];
@@ -388,7 +388,6 @@
                 }
             }
 
-            // 更新位置與降落判定
             for (let i = planes.length - 1; i >= 0; i--) {
                 let p = planes[i];
 
@@ -404,7 +403,6 @@
                 p.x += p.vx;
                 p.y += p.vy;
 
-                // 雷達回波閃爍邏輯
                 const planeAngle = Math.atan2(p.y - CENTER_Y, p.x - CENTER_X);
                 let angleDiff = Math.abs(sweepAngle - planeAngle);
                 if (angleDiff > Math.PI) angleDiff = Math.PI * 2 - angleDiff;
@@ -415,7 +413,6 @@
                     p.flashAlpha = Math.max(0.25, p.flashAlpha * 0.95);
                 }
 
-                // 嚴格降落檢測：必須是 [ARR]、高度 <= 3000 呎、且落入跑道區
                 for (let rw of runways) {
                     if (
                         p.type === 'ARR' &&
@@ -450,7 +447,6 @@
             ctx.fillStyle = 'rgba(2, 6, 23, 0.35)';
             ctx.fillRect(0, 0, WIDTH, HEIGHT);
 
-            // 繪製雙跑道與雙向編號 (05 / 23)
             runways.forEach(rw => {
                 ctx.fillStyle = '#1e293b';
                 ctx.fillRect(rw.x, rw.y, rw.w, rw.h);
@@ -473,7 +469,6 @@
                 ctx.setLineDash([]);
             });
 
-            // **即時航向預覽虛線（當已選中飛機時，跟隨滑鼠顯示黃色虛線）**
             if (selectedPlane) {
                 ctx.strokeStyle = '#facc15';
                 ctx.lineWidth = 1.5;
@@ -490,7 +485,6 @@
                 ctx.fill();
             }
 
-            // 繪製所有飛機
             planes.forEach(p => {
                 const isSelected = (selectedPlane === p);
 
@@ -536,7 +530,6 @@
                 ctx.lineTo(p.x - p.vx * 20, p.y - p.vy * 20);
                 ctx.stroke();
 
-                // 標籤顯示：航班代碼、[ARR]/[ENR]、高度與速度
                 const labelColor = p.type === 'ARR' ? '#fbbf24' : '#86efac';
                 ctx.fillStyle = p.isWarning ? '#fca5a5' : (isSelected ? '#fef08a' : labelColor);
                 ctx.font = '10px monospace';
